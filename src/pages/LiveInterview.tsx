@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAudio } from "@/hooks/useAudio";
 import { generateSpeech, playBase64Audio } from "@/utils/elevenlabs";
+import MicrophoneSetup from "@/components/MicrophoneSetup";
 
 const LiveInterview = () => {
   const navigate = useNavigate();
@@ -22,7 +22,7 @@ const LiveInterview = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [interviewState, setInterviewState] = useState<'idle' | 'recording' | 'processing' | 'speaking'>('idle');
   const [isTyping, setIsTyping] = useState(false);
-  const [sessionId] = useState<string>('interview-' + Date.now());
+  const [sessionId] = useState<string>('interview-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9));
   const [conversationHistory, setConversationHistory] = useState<Array<{user: string, ai: string, timestamp: number}>>([]);
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [liveTranscript, setLiveTranscript] = useState("");
@@ -30,18 +30,21 @@ const LiveInterview = () => {
   const [silenceTimer, setSilenceTimer] = useState<NodeJS.Timeout | null>(null);
   const [isAutoRecording, setIsAutoRecording] = useState(false);
   const [lastSpeechTime, setLastSpeechTime] = useState<number>(0);
+  const [showMicSetup, setShowMicSetup] = useState(true);
+  const [micSetupComplete, setMicSetupComplete] = useState(false);
 
-  // Start with a welcoming first question
+  // Start with a welcoming first question (only after mic setup is complete)
   useEffect(() => {
-    if (!currentQuestion && conversationHistory.length === 0) {
+    if (micSetupComplete && !currentQuestion && conversationHistory.length === 0) {
       const welcomeQuestion = "Welcome to your technical interview! I'm excited to learn about your background. Could you start by telling me about yourself and your experience in software development?";
       setCurrentQuestion(welcomeQuestion);
       setDisplayedQuestion(welcomeQuestion);
       
-      // Speak the welcome question
+      // Speak the welcome question (auto-recording already enabled in handleMicSetupComplete)
+      console.log('🎯 Starting interview - isAutoRecording:', isAutoRecording);
       speakQuestion(welcomeQuestion);
     }
-  }, []);
+  }, [micSetupComplete]);
 
   // Real audio processing when recording stops
   useEffect(() => {
@@ -104,20 +107,26 @@ const LiveInterview = () => {
           if (fullTranscript.trim().length > 0) {
             setLastSpeechTime(Date.now());
             
-            // Clear existing silence timer
-            if (silenceTimer) {
-              clearTimeout(silenceTimer);
-              setSilenceTimer(null);
-            }
-            
-            // Start new silence timer for 5 seconds
-            const newTimer = setTimeout(() => {
-              console.log('🔇 5 seconds of silence detected - stopping recording automatically');
-              audio.stopRecording();
-              setSilenceTimer(null);
-            }, 5000);
-            
-            setSilenceTimer(newTimer);
+            // Clear existing silence timer first
+            setSilenceTimer(prev => {
+              if (prev) {
+                clearTimeout(prev);
+              }
+              
+              // Only start new timer if auto-recording is active
+              if (isAutoRecording && audio.isRecording) {
+                const newTimer = setTimeout(() => {
+                  console.log('🔇 5 seconds of silence detected - stopping recording automatically');
+                  if (audio.isRecording) {
+                    audio.stopRecording();
+                  }
+                  setSilenceTimer(null);
+                }, 5000);
+                
+                return newTimer;
+              }
+              return null;
+            });
           }
         };
         
@@ -143,7 +152,7 @@ const LiveInterview = () => {
         setSilenceTimer(null);
       }
     };
-  }, [audio.isRecording]);
+  }, [audio.isRecording, silenceTimer, isAutoRecording]);
 
   // Overall interview timer
   useEffect(() => {
@@ -186,59 +195,32 @@ const LiveInterview = () => {
   const handleEndInterview = async () => {
     console.log('🛑 FORCE STOPPING ALL INTERVIEW AUDIO AND PROCESSES...');
     
-    // 1. Use the nuclear option - force stop ALL audio from useAudio hook
+    // 1. Clear any pending silence timers to prevent interference
+    if (silenceTimer) {
+      console.log('⏰ Clearing silence timer...');
+      clearTimeout(silenceTimer);
+      setSilenceTimer(null);
+    }
+    
+    // 2. Nuclear shutdown of all audio
     console.log('💥 Using nuclear audio shutdown...');
-    audio.forceStopAll();
+    await audio.forceStopAll();
     
-    // 2. BRUTALLY stop all speech synthesis
+    // 3. Cancel any ongoing speech synthesis
+    console.log('🗣️ Force canceling all speech synthesis...');
     if ('speechSynthesis' in window) {
-      console.log('🗣️ Force canceling all speech synthesis...');
-      speechSynthesis.cancel();
-      
-      // Extra nuclear option - pause and cancel multiple times
-      speechSynthesis.pause();
-      speechSynthesis.cancel();
-      
-      // Clear any queued speech
-      setTimeout(() => {
-        speechSynthesis.cancel();
-      }, 100);
-      
-      // Stop after delay too
-      setTimeout(() => {
-        speechSynthesis.cancel();
-      }, 500);
+      window.speechSynthesis.cancel();
     }
     
-    // 3. Stop any ongoing speech recognition
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      console.log('👂 Stopping speech recognition...');
-      // The recognition will be stopped by the useEffect cleanup
+    // 4. Stop any speech recognition
+    console.log('👂 Stopping speech recognition...');
+    if ('speechSynthesis' in window) {
+      // Speech recognition will be stopped by the useEffect cleanup
     }
     
-    // 4. Stop any HTML5 audio elements that might be playing
-    const audioElements = document.querySelectorAll('audio');
-    audioElements.forEach(audioEl => {
-      console.log('🔊 Force stopping HTML5 audio element...');
-      audioEl.pause();
-      audioEl.currentTime = 0;
-      audioEl.src = '';
-      audioEl.load(); // Reset the audio element
-    });
-    
-    // 5. Stop any background Web Audio API contexts
-    try {
-      if ((window as any).audioContext) {
-        console.log('🎵 Stopping Web Audio context...');
-        (window as any).audioContext.suspend();
-      }
-    } catch (error) {
-      console.log('Web Audio context already stopped');
-    }
-    
-    // 6. Reset ALL states immediately
+    // 5. Reset all states
     setInterviewState('idle');
-    setRecordingDuration(0);
+    setIsAutoRecording(false);
     setCurrentTranscript("");
     setLiveTranscript("");
     setCurrentQuestion("");
@@ -246,10 +228,17 @@ const LiveInterview = () => {
     
     console.log('✅ ALL AUDIO FORCEFULLY STOPPED - Interview session terminated');
     
-    // 7. Extended delay to ensure everything stops before analysis
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // 6. Save current session info immediately before navigation
+    const finalSessionInfo = {
+      sessionId,
+      duration: elapsedTime,
+      conversationHistory,
+      timestamp: Date.now()
+    };
+    localStorage.setItem('interviewSession', JSON.stringify(finalSessionInfo));
+    console.log('💾 Saved final session info before navigation:', finalSessionInfo);
     
-    // 8. Trigger analysis and save results (in background)
+    // 7. Trigger analysis and save results (in background)
     if (conversationHistory.length > 0) {
       console.log('📊 Starting background analysis...');
       // Don't await this - let it run in background while navigating
@@ -258,13 +247,17 @@ const LiveInterview = () => {
       });
     }
     
-    // 9. Navigate immediately
+    // 8. Navigate immediately
     console.log('🏁 Navigating to session summary...');
     navigate("/session-summary");
   };
 
   const triggerInterviewAnalysis = async () => {
     try {
+      console.log('📊 Starting analysis for session:', sessionId);
+      console.log('💬 Current conversation history:', conversationHistory);
+      console.log('❓ Current question:', currentQuestion);
+      
       // Convert conversation history to the format expected by analysis API
       const conversationForAnalysis = [];
       
@@ -293,6 +286,8 @@ const LiveInterview = () => {
         );
       });
 
+      console.log('📝 Conversation for analysis:', conversationForAnalysis);
+
       // Call analysis API
       const analysisResponse = await fetch('https://llfckjszmvhirwjfzdqj.supabase.co/functions/v1/interview-analysis', {
         method: 'POST',
@@ -316,12 +311,6 @@ const LiveInterview = () => {
         
         // Store analysis results in localStorage for SessionSummary page
         localStorage.setItem('interviewAnalysis', JSON.stringify(analysisData));
-        localStorage.setItem('interviewSession', JSON.stringify({
-          sessionId,
-          duration: elapsedTime,
-          conversationHistory,
-          timestamp: Date.now()
-        }));
       } else {
         console.warn('⚠️ Analysis failed, will use fallback data');
       }
@@ -332,25 +321,37 @@ const LiveInterview = () => {
   };
 
   const startAutoRecording = async () => {
+    console.log('🔍 startAutoRecording called - isAutoRecording:', isAutoRecording, 'interviewState:', interviewState);
+    
+    // Don't start recording if auto-recording is disabled
+    if (!isAutoRecording) {
+      console.log('🚫 Auto-recording disabled - skipping', { isAutoRecording, interviewState });
+      return;
+    }
+    
     try {
       console.log('🎤 Auto-starting recording after AI response...');
-      setIsAutoRecording(true);
+      console.log('🎤 Audio permissions check - hasPermission:', audio.hasPermission);
       
       if (!audio.hasPermission) {
+        console.log('🎤 Requesting microphone permission...');
         const hasPermission = await audio.requestPermission();
         if (!hasPermission) {
           alert('Microphone permission is required for the interview');
           setIsAutoRecording(false);
           return;
         }
+        console.log('✅ Microphone permission granted');
       }
       
+      console.log('🎤 Starting audio recording...');
       await audio.startRecording();
       setCurrentTranscript("");
       setLastSpeechTime(Date.now());
       setInterviewState('recording');
+      console.log('✅ Auto-recording started successfully');
     } catch (error) {
-      console.error('Failed to start auto recording:', error);
+      console.error('❌ Failed to start auto recording:', error);
       setIsAutoRecording(false);
     }
   };
@@ -435,11 +436,18 @@ const LiveInterview = () => {
       }
 
       // Add to conversation history
-      setConversationHistory(prev => [...prev, {
+      const newTurn = {
         user: userInput,
         ai: response,
         timestamp: Date.now()
-      }]);
+      };
+      
+      console.log('📝 Adding new conversation turn:', newTurn);
+      setConversationHistory(prev => {
+        const updated = [...prev, newTurn];
+        console.log('📚 Updated conversation history:', updated);
+        return updated;
+      });
 
       // Set new question and speak it
       setCurrentQuestion(response);
@@ -463,20 +471,34 @@ const LiveInterview = () => {
       await playBase64Audio(audioBase64);
       
       console.log('✅ Interview question spoken with premium voice');
+      console.log('🔍 Debug - isAutoRecording:', isAutoRecording, 'interviewState:', interviewState);
       
-      // Auto-start recording after a brief pause
-      setTimeout(() => {
-        startAutoRecording();
-      }, 1000);
+      // Reset interview state to idle after speaking
+      setInterviewState('idle');
+      
+      // Auto-start recording after a brief pause, only if auto-recording is enabled
+      if (isAutoRecording) {
+        console.log('⏰ Setting timeout to start auto-recording in 1 second...');
+        setTimeout(() => {
+          console.log('⏰ Timeout triggered - calling startAutoRecording...');
+          startAutoRecording();
+        }, 1000);
+      } else {
+        console.log('❌ Auto-recording is disabled - not starting recording');
+      }
       
     } catch (error) {
       console.error('❌ Speech failed, continuing silently:', error);
-      setInterviewState('speaking'); // Still show typing effect
+      setInterviewState('idle'); // Reset state after failed speech
       
-      // Still start recording even if speech failed
-      setTimeout(() => {
-        startAutoRecording();
-      }, 1000);
+      // Still start recording even if speech failed, only if auto-recording is enabled
+      if (isAutoRecording) {
+        console.log('⏰ Speech failed - setting timeout to start auto-recording anyway...');
+        setTimeout(() => {
+          console.log('⏰ Error timeout triggered - calling startAutoRecording...');
+          startAutoRecording();
+        }, 1000);
+      }
     }
   };
 
@@ -526,6 +548,36 @@ const LiveInterview = () => {
   };
 
   const stateDisplay = getStateDisplay();
+
+  const handleMicSetupComplete = () => {
+    console.log('✅ Microphone setup completed - starting interview');
+    console.log('🗑️ Clearing old localStorage data for fresh interview');
+    
+    // Clear any old interview data
+    localStorage.removeItem('interviewAnalysis');
+    localStorage.removeItem('interviewSession');
+    
+    setShowMicSetup(false);
+    setMicSetupComplete(true);
+    // Enable auto-recording now that setup is complete
+    setIsAutoRecording(true);
+    console.log('🎤 Auto-recording enabled after setup completion');
+  };
+
+  const handleMicSetupCancel = () => {
+    console.log('❌ Microphone setup cancelled');
+    navigate("/dashboard");
+  };
+
+  // Show microphone setup first
+  if (showMicSetup) {
+    return (
+      <MicrophoneSetup 
+        onSetupComplete={handleMicSetupComplete}
+        onCancel={handleMicSetupCancel}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
