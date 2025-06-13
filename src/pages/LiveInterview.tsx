@@ -16,10 +16,11 @@ import {
 const LiveInterview = () => {
   const navigate = useNavigate();
   const [isListening, setIsListening] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState("");
+  const [displayedQuestion, setDisplayedQuestion] = useState("");
   const [elapsedTime, setElapsedTime] = useState(0);
   const [interviewState, setInterviewState] = useState<'listening' | 'processing' | 'speaking'>('listening');
+  const [isTyping, setIsTyping] = useState(false);
 
   const questions = [
     "Tell me about yourself and your background in software engineering.",
@@ -28,6 +29,29 @@ const LiveInterview = () => {
     "Walk me through your approach to debugging a complex issue.",
     "Tell me about a time you had to learn a new technology quickly."
   ];
+
+  // Typing effect hook
+  useEffect(() => {
+    if (interviewState === 'speaking' && currentQuestion && currentQuestion !== displayedQuestion) {
+      setIsTyping(true);
+      setDisplayedQuestion("");
+      
+      let index = 0;
+      const typingInterval = setInterval(() => {
+        if (index < currentQuestion.length) {
+          setDisplayedQuestion(prev => prev + currentQuestion[index]);
+          index++;
+        } else {
+          clearInterval(typingInterval);
+          setIsTyping(false);
+        }
+      }, 50); // Adjust typing speed here
+
+      return () => clearInterval(typingInterval);
+    } else if (interviewState !== 'speaking') {
+      setDisplayedQuestion(currentQuestion);
+    }
+  }, [currentQuestion, interviewState]);
 
   useEffect(() => {
     // Simulate interview flow
@@ -48,9 +72,9 @@ const LiveInterview = () => {
       if (interviewState === 'listening') {
         setInterviewState('processing');
         setTimeout(() => setInterviewState('speaking'), 2000);
-        setTimeout(() => setInterviewState('listening'), 5000);
+        setTimeout(() => setInterviewState('listening'), 8000);
       }
-    }, 8000);
+    }, 12000);
 
     return () => clearInterval(stateTimer);
   }, [interviewState]);
@@ -152,7 +176,7 @@ const LiveInterview = () => {
             </div>
           </div>
 
-          {/* Current Question */}
+          {/* Current Question with Typing Effect */}
           <Card className="glass-card border-0 max-w-2xl mx-auto">
             <div className="p-6">
               <div className="flex items-start gap-3">
@@ -161,7 +185,10 @@ const LiveInterview = () => {
                 </div>
                 <div className="text-left">
                   <p className="text-sm text-muted-foreground mb-2">Current Question:</p>
-                  <p className="text-lg leading-relaxed">{currentQuestion}</p>
+                  <p className="text-lg leading-relaxed min-h-[2rem]">
+                    {displayedQuestion}
+                    {isTyping && <span className="animate-pulse">|</span>}
+                  </p>
                 </div>
               </div>
             </div>
@@ -179,7 +206,7 @@ const LiveInterview = () => {
         </div>
       </div>
 
-      {/* Bottom Controls */}
+      {/* Bottom Controls - Simplified */}
       <div className="glass-card border-0 border-t border-muted/20 p-4">
         <div className="container mx-auto flex items-center justify-center gap-4">
           <Button
