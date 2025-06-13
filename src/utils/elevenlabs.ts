@@ -18,10 +18,29 @@ export const VOICES: Voice[] = [
   { voice_id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam', description: 'Natural male voice' }
 ];
 
+// Global state to prevent overlapping audio
+let isGeneratingAudio = false;
+let audioQueue: string[] = [];
+
 export const generateSpeech = async (
   text: string, 
   voiceId: string = 'EXAVITQu4vr4xnSDxMaL' // Default to Bella (ultra-smooth)
 ): Promise<string> => {
+  // Prevent overlapping audio generation
+  if (isGeneratingAudio) {
+    console.log('🔇 Audio generation already in progress, skipping duplicate request for:', text.substring(0, 50) + '...');
+    return 'skipped_duplicate_request';
+  }
+
+  // Check if this text is already being generated
+  if (audioQueue.includes(text)) {
+    console.log('🔇 This text is already in the queue, skipping:', text.substring(0, 50) + '...');
+    return 'skipped_duplicate_text';
+  }
+
+  isGeneratingAudio = true;
+  audioQueue.push(text);
+  
   try {
     console.log(`🔊 Generating speech with ElevenLabs via backend (${voiceId}):`, text);
     
@@ -72,6 +91,10 @@ export const generateSpeech = async (
       console.error('❌ All TTS methods failed:', fallbackError);
       throw new Error('All text-to-speech methods failed');
     }
+  } finally {
+    // Always clean up state
+    isGeneratingAudio = false;
+    audioQueue = audioQueue.filter(t => t !== text);
   }
 };
 
@@ -141,6 +164,12 @@ const generateBrowserTTS = async (text: string): Promise<string> => {
 
 export const playBase64Audio = async (base64Audio: string, mimeType = 'audio/mpeg'): Promise<void> => {
   try {
+    // Handle skipped requests
+    if (base64Audio === 'skipped_duplicate_request' || base64Audio === 'skipped_duplicate_text') {
+      console.log('🔇 Skipping audio playback for duplicate request');
+      return;
+    }
+    
     // Handle browser TTS placeholder (audio already played)
     if (base64Audio === 'browser_tts_placeholder') {
       console.log('🎙️ Browser TTS audio already played');

@@ -11,6 +11,8 @@ export const EDGE_FUNCTIONS = {
   questionGenerator: `${supabaseUrl}/functions/v1/question-generator`,
   transcriptHandler: `${supabaseUrl}/functions/v1/transcript-handler`,
   audioWebSocket: `${supabaseUrl.replace('https://', 'wss://')}/functions/v1/audio-websocket`,
+  codingFeedback: `${supabaseUrl}/functions/v1/coding-feedback`,
+  codeExecutor: `${supabaseUrl}/functions/v1/code-executor`,
 }
 
 // Database types for TypeScript

@@ -49,7 +49,12 @@ const InterviewSetup = () => {
     if (currentStep < 3) {
       setCurrentStep(currentStep + 1);
     } else {
-      navigate("/live-interview");
+      // Route to appropriate interview type
+      if (selectedType === "coding") {
+        navigate("/live-coding");
+      } else {
+        navigate("/live-interview");
+      }
     }
   };
 

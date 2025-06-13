@@ -185,6 +185,48 @@ export class AudioWebSocket {
   }
 }
 
+// Coding Interview API
+export const codingAPI = {
+  // Execute code with test cases
+  async executeCode(data: { 
+    code: string
+    language: string
+    testCases: Array<{
+      input: any[]
+      expected: any
+      description: string
+    }>
+    functionName: string
+  }): Promise<{ 
+    output: string
+    tests: {
+      passed: number
+      total: number
+      details: string[]
+      results: any[]
+    }
+  }> {
+    return makeAuthenticatedRequest(EDGE_FUNCTIONS.codeExecutor, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  // Get AI feedback on code + transcript
+  async getCodingFeedback(data: {
+    transcript: string
+    code: string
+    language: string
+    problem: string
+    testResults: any
+  }): Promise<{ feedback: string }> {
+    return makeAuthenticatedRequest(EDGE_FUNCTIONS.codingFeedback, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+}
+
 // User Profile API (using direct Supabase client)
 export const userAPI = {
   // Get current user profile

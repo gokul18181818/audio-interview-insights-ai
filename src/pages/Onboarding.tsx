@@ -1,14 +1,17 @@
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Mic, Github, Mail, Sparkles, Zap, Target } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Mic, Github, Mail, Sparkles, Zap, Target, AlertCircle, Eye, EyeOff } from "lucide-react";
 import FloatingElement from "@/components/FloatingElement";
 import { useAudio } from "@/hooks/useAudio";
+import { authAPI } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 const Onboarding = () => {
   const [step, setStep] = useState(1);
@@ -16,22 +19,77 @@ const Onboarding = () => {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
   const [experience, setExperience] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
   const audio = useAudio();
 
   const handleNext = async () => {
-    if (step < 3) {
-      setStep(step + 1);
+    if (step === 1) {
+      // Step 1: Handle signup
+      if (!email || !password) {
+        setError("Please fill in all fields");
+        return;
+      }
+
+      setIsLoading(true);
+      setError("");
+
+      try {
+        // Create account with Supabase
+        const data = await authAPI.signUp(email, password, {
+          full_name: email.split('@')[0], // Default name from email
+        });
+
+        console.log("✅ User signed up successfully:", data.user?.email);
+        setStep(step + 1);
+      } catch (error: any) {
+        console.error("❌ Sign up error:", error);
+        setError(error.message || "Failed to create account. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    } else if (step === 2) {
+      // Step 2: Save profile information
+      if (!role || !experience) {
+        setError("Please complete your profile");
+        return;
+      }
+
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Update user metadata or profile table
+          const { error: updateError } = await supabase.auth.updateUser({
+            data: { 
+              role, 
+              experience_level: experience,
+              onboarding_completed: true
+            }
+          });
+
+          if (updateError) throw updateError;
+        }
+        
+        setStep(step + 1);
+      } catch (error: any) {
+        console.error("❌ Profile update error:", error);
+        setError(error.message || "Failed to save profile. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
     } else if (step === 3) {
-      // Request microphone permission before proceeding
+      // Step 3: Request microphone permission before proceeding
       const hasPermission = await audio.requestPermission();
       if (hasPermission) {
         navigate("/dashboard");
       } else {
-        alert("Microphone access is required for voice interviews. Please enable it in your browser settings.");
+        setError("Microphone access is required for voice interviews. Please enable it in your browser settings.");
       }
-    } else {
-      navigate("/dashboard");
     }
   };
 
@@ -116,6 +174,13 @@ const Onboarding = () => {
                     <p className="text-muted-foreground">Create your account to begin</p>
                   </div>
 
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="email">Email</Label>
@@ -126,23 +191,45 @@ const Onboarding = () => {
                         onChange={(e) => setEmail(e.target.value)}
                         className="glass-card border-0 mt-1"
                         placeholder="your@email.com"
+                        disabled={isLoading}
                       />
                     </div>
                     <div>
                       <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="glass-card border-0 mt-1"
-                        placeholder="••••••••"
-                      />
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="glass-card border-0 mt-1 pr-10"
+                          placeholder="••••••••"
+                          disabled={isLoading}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-1 h-9 w-9 px-0"
+                          onClick={() => setShowPassword(!showPassword)}
+                          disabled={isLoading}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
-                  <Button onClick={handleNext} className="w-full bg-gradient-primary border-0 hover:opacity-90">
-                    Continue
+                  <Button 
+                    onClick={handleNext} 
+                    className="w-full bg-gradient-primary border-0 hover:opacity-90"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Creating account..." : "Continue"}
                   </Button>
 
                   <div className="relative">
@@ -154,10 +241,26 @@ const Onboarding = () => {
                     </div>
                   </div>
 
-                  <Button variant="outline" className="w-full glass-card border-muted hover:bg-muted/20">
+                  <Button 
+                    variant="outline" 
+                    className="w-full glass-card border-muted hover:bg-muted/20"
+                    disabled={isLoading}
+                  >
                     <Github className="w-4 h-4 mr-2" />
                     Continue with GitHub
                   </Button>
+
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Already have an account?{" "}
+                      <Link 
+                        to="/sign-in" 
+                        className="text-primary hover:underline font-medium"
+                      >
+                        Sign in
+                      </Link>
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -167,6 +270,13 @@ const Onboarding = () => {
                     <h2 className="text-2xl font-bold mb-2">Tell us about yourself</h2>
                     <p className="text-muted-foreground">Help us personalize your experience</p>
                   </div>
+
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
 
                   <div className="space-y-4">
                     <div>
@@ -209,11 +319,20 @@ const Onboarding = () => {
                   </div>
 
                   <div className="flex gap-3">
-                    <Button variant="outline" onClick={handleSkip} className="flex-1">
+                    <Button 
+                      variant="outline" 
+                      onClick={handleSkip} 
+                      className="flex-1"
+                      disabled={isLoading}
+                    >
                       Skip for now
                     </Button>
-                    <Button onClick={handleNext} className="flex-1 bg-gradient-primary">
-                      Continue
+                    <Button 
+                      onClick={handleNext} 
+                      className="flex-1 bg-gradient-primary"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Saving..." : "Continue"}
                     </Button>
                   </div>
                 </div>
@@ -232,6 +351,13 @@ const Onboarding = () => {
                     </p>
                   </div>
 
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+
                   <div className="glass-card rounded-lg p-4 text-left">
                     <div className="flex items-start gap-3">
                       <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-1">
@@ -246,8 +372,12 @@ const Onboarding = () => {
                     </div>
                   </div>
 
-                  <Button onClick={handleNext} className="w-full bg-gradient-primary">
-                    Allow Microphone Access
+                  <Button 
+                    onClick={handleNext} 
+                    className="w-full bg-gradient-primary"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Setting up..." : "Allow Microphone Access"}
                   </Button>
                 </div>
               )}

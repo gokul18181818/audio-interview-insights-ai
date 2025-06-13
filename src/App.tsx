@@ -5,9 +5,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Onboarding from "./pages/Onboarding";
+import SignIn from "./pages/SignIn";
 import Dashboard from "./pages/Dashboard";
 import InterviewSetup from "./pages/InterviewSetup";
 import LiveInterview from "./pages/LiveInterview";
+import LiveCoding from "./pages/LiveCoding";
 import SessionSummary from "./pages/SessionSummary";
 import SessionHistory from "./pages/SessionHistory";
 import Settings from "./pages/Settings";
@@ -25,9 +27,11 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Onboarding />} />
+          <Route path="/sign-in" element={<SignIn />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/interview-setup" element={<InterviewSetup />} />
           <Route path="/live-interview" element={<LiveInterview />} />
+          <Route path="/live-coding" element={<LiveCoding />} />
           <Route path="/session-summary" element={<SessionSummary />} />
           <Route path="/history" element={<SessionHistory />} />
           <Route path="/settings" element={<Settings />} />
