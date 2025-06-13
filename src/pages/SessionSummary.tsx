@@ -1,12 +1,11 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
+import confetti from 'canvas-confetti';
 import { 
   ArrowLeft,
   Play,
@@ -14,17 +13,21 @@ import {
   TrendingUp,
   Clock,
   MessageSquare,
-  Volume2,
   Target,
   Lightbulb,
   RefreshCw,
-  Home
+  Home,
+  CheckCircle,
+  AlertCircle,
+  ThumbsUp,
+  Eye
 } from "lucide-react";
 import Navigation from "@/components/Navigation";
 
 const SessionSummary = () => {
   const navigate = useNavigate();
-  const [activeTranscriptItem, setActiveTranscriptItem] = useState<number | null>(null);
+  const [scoreAnimated, setScoreAnimated] = useState(0);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const sessionData = {
     date: "Today, 3:45 PM",
@@ -35,94 +38,104 @@ const SessionSummary = () => {
     overallScore: 85
   };
 
+  const strengths = [
+    "Clear technical explanations",
+    "Good use of specific examples",
+    "Confident delivery",
+    "Structured responses"
+  ];
+
+  const improvements = [
+    "Use STAR method more consistently",
+    "Reduce filler words (um, like)",
+    "Provide more quantified results",
+    "Practice concise answers"
+  ];
+
   const metrics = [
-    { label: "Pace", value: 78, status: "Good", description: "Optimal speaking speed" },
-    { label: "Clarity", value: 92, status: "Excellent", description: "Clear articulation" },
-    { label: "STAR Method", value: 73, status: "Good", description: "Structured responses" },
-    { label: "Confidence", value: 81, status: "Good", description: "Confident delivery" }
+    { label: "Pace", value: 78, status: "Good", description: "Optimal speaking speed", icon: Clock },
+    { label: "Clarity", value: 92, status: "Excellent", description: "Clear articulation", icon: MessageSquare },
+    { label: "STAR Method", value: 73, status: "Good", description: "Structured responses", icon: Target },
+    { label: "Confidence", value: 81, status: "Good", description: "Confident delivery", icon: TrendingUp }
   ];
 
-  const transcript = [
-    {
-      id: 1,
-      speaker: "AI",
-      text: "Tell me about yourself and your background in software engineering.",
-      timestamp: "00:15",
-      duration: 3
-    },
-    {
-      id: 2,
-      speaker: "You",
-      text: "I'm a software engineer with 3 years of experience, primarily focused on backend development. I've worked with Python, Java, and distributed systems. In my current role at TechCorp, I've been responsible for building scalable APIs and optimizing database performance.",
-      timestamp: "00:18",
-      duration: 25,
-      highlights: ["distributed systems", "scalable APIs", "database performance"],
-      fillerWords: ["um", "like"]
-    },
-    {
-      id: 3,
-      speaker: "AI", 
-      text: "That's great. Can you describe a challenging technical problem you've solved recently?",
-      timestamp: "00:43",
-      duration: 4
-    },
-    {
-      id: 4,
-      speaker: "You",
-      text: "Recently, we had a performance issue where our API response times increased from 200ms to over 2 seconds. I investigated and found it was due to N+1 queries in our ORM. I implemented eager loading and database query optimization, which reduced response times back to under 300ms.",
-      timestamp: "00:47", 
-      duration: 30,
-      highlights: ["performance issue", "N+1 queries", "optimization"],
-      fillerWords: ["uh"]
-    }
-  ];
-
-  const suggestedAnswers = [
+  const suggestions = [
     {
       question: "Tell me about yourself",
-      suggestion: "Consider starting with a brief overview of your experience, then highlight 2-3 key achievements that relate to the role you're applying for."
+      current: "I'm a software engineer with 3 years of experience...",
+      suggestion: "Consider starting with a brief overview, then highlight 2-3 key achievements that relate to the role.",
+      improvement: "Structure: Brief intro → Key achievements → Relevant skills → Connection to role"
     },
     {
       question: "Challenging technical problem",
-      suggestion: "Use the STAR method more explicitly: Situation (performance issue), Task (investigate), Action (implemented solutions), Result (quantified improvement)."
+      current: "Recently, we had a performance issue...",
+      suggestion: "Use the STAR method more explicitly to showcase your problem-solving process.",
+      improvement: "Situation → Task → Action (be specific) → Result (quantify impact)"
     }
   ];
 
-  const playAudio = (timestamp: string) => {
-    console.log(`Playing audio from ${timestamp}`);
-    // Audio playback logic would go here
+  // Trigger confetti and score animation on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowConfetti(true);
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    }, 500);
+
+    // Animate score counter
+    const scoreTimer = setTimeout(() => {
+      let current = 0;
+      const increment = sessionData.overallScore / 50;
+      const scoreInterval = setInterval(() => {
+        current += increment;
+        if (current >= sessionData.overallScore) {
+          setScoreAnimated(sessionData.overallScore);
+          clearInterval(scoreInterval);
+        } else {
+          setScoreAnimated(Math.floor(current));
+        }
+      }, 30);
+    }, 1000);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(scoreTimer);
+    };
+  }, []);
+
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return "text-green-400";
+    if (score >= 70) return "text-blue-400";
+    if (score >= 50) return "text-yellow-400";
+    return "text-red-400";
+  };
+
+  const getScoreGradient = (score: number) => {
+    if (score >= 90) return "from-green-500 to-emerald-500";
+    if (score >= 70) return "from-blue-500 to-cyan-500";
+    if (score >= 50) return "from-yellow-500 to-orange-500";
+    return "from-red-500 to-pink-500";
   };
 
   return (
     <div className="min-h-screen">
       <Navigation />
       
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-6 py-8 max-w-4xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => navigate("/dashboard")}
-              className="rounded-full"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold">Interview Complete! 🎉</h1>
-              <div className="flex items-center gap-4 text-muted-foreground mt-1">
-                <span>{sessionData.date}</span>
-                <span>•</span>
-                <span>{sessionData.duration}</span>
-                <span>•</span>
-                <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">
-                  {sessionData.company} • {sessionData.role}
-                </Badge>
-              </div>
-            </div>
-          </div>
-
+        <div className="flex items-center justify-between mb-12">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => navigate("/dashboard")}
+            className="rounded-full"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          
           <div className="flex items-center gap-3">
             <Button onClick={() => navigate("/interview-setup")} variant="outline">
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -135,179 +148,191 @@ const SessionSummary = () => {
           </div>
         </div>
 
-        {/* Overall Score */}
-        <Card className="glass-card border-0 mb-8">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-6">
-              <div className="text-center">
-                <div className="w-20 h-20 rounded-full bg-gradient-primary flex items-center justify-center mb-2">
-                  <span className="text-2xl font-bold text-white">{sessionData.overallScore}</span>
-                </div>
-                <p className="text-sm text-muted-foreground">Overall Score</p>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold mb-2">Great performance!</h3>
-                <p className="text-muted-foreground mb-4">
-                  You demonstrated strong technical knowledge and good communication skills. 
-                  Focus on using the STAR method more consistently for behavioral questions.
-                </p>
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-green-400" />
-                  <span className="text-sm text-green-400">+8 points from last session</span>
-                </div>
-              </div>
+        {/* Celebration & Score Section */}
+        <div className="text-center mb-16">
+          <div className="mb-8">
+            <h1 className="text-5xl font-bold mb-4 animate-fade-in">
+              Interview Complete! 🎉
+            </h1>
+            <div className="flex items-center justify-center gap-4 text-muted-foreground">
+              <span>{sessionData.date}</span>
+              <span>•</span>
+              <span>{sessionData.duration}</span>
+              <span>•</span>
+              <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">
+                {sessionData.company} • {sessionData.role}
+              </Badge>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Detailed Feedback Tabs */}
-        <Tabs defaultValue="transcript" className="space-y-6">
-          <TabsList className="glass-card border-0 p-1">
-            <TabsTrigger value="transcript" className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" />
-              Transcript
-            </TabsTrigger>
-            <TabsTrigger value="metrics" className="flex items-center gap-2">
-              <Target className="w-4 h-4" />
-              Metrics
-            </TabsTrigger>
-            <TabsTrigger value="suggestions" className="flex items-center gap-2">
-              <Lightbulb className="w-4 h-4" />
-              Suggestions
-            </TabsTrigger>
-          </TabsList>
+          {/* Animated Score Card */}
+          <Card className="glass-card border-0 max-w-md mx-auto mb-12 animate-scale-in">
+            <CardContent className="p-8">
+              <div className="relative">
+                <div className={`w-32 h-32 mx-auto rounded-full bg-gradient-to-br ${getScoreGradient(sessionData.overallScore)} flex items-center justify-center mb-4 animate-pulse-glow`}>
+                  <span className={`text-4xl font-bold text-white`}>
+                    {scoreAnimated}
+                  </span>
+                </div>
+                <h3 className="text-2xl font-bold mb-2">Overall Score</h3>
+                <p className="text-muted-foreground">
+                  {sessionData.overallScore >= 90 ? "Outstanding performance!" :
+                   sessionData.overallScore >= 70 ? "Great job! Strong performance overall." :
+                   sessionData.overallScore >= 50 ? "Good effort! Room for improvement." :
+                   "Keep practicing! You're on the right track."}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-          <TabsContent value="transcript" className="space-y-4">
-            <Card className="glass-card border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  Interactive Transcript
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {transcript.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`p-4 rounded-lg border transition-all cursor-pointer ${
-                      activeTranscriptItem === item.id 
-                        ? "border-primary bg-primary/10" 
-                        : "border-muted hover:border-primary/50 hover:bg-white/5"
-                    }`}
-                    onClick={() => setActiveTranscriptItem(item.id)}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Badge 
-                          variant={item.speaker === "AI" ? "secondary" : "outline"}
-                          className="text-xs"
-                        >
-                          {item.speaker}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">{item.timestamp}</span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            playAudio(item.timestamp);
-                          }}
-                          className="p-1 h-6 w-6"
-                        >
-                          <Play className="w-3 h-3" />
-                        </Button>
+        {/* What You Did Well */}
+        <section className="mb-16">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+              <ThumbsUp className="w-6 h-6 text-green-400" />
+            </div>
+            <h2 className="text-3xl font-bold">What You Did Well</h2>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            {strengths.map((strength, index) => (
+              <Card key={index} className="glass-card border-0 animate-fade-in" style={{animationDelay: `${index * 0.1}s`}}>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    <p className="font-medium">{strength}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* Areas for Improvement */}
+        <section className="mb-16">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center">
+              <Target className="w-6 h-6 text-yellow-400" />
+            </div>
+            <h2 className="text-3xl font-bold">Areas for Improvement</h2>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            {improvements.map((improvement, index) => (
+              <Card key={index} className="glass-card border-0 animate-fade-in" style={{animationDelay: `${index * 0.1}s`}}>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+                    <p className="font-medium">{improvement}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* Individual Metrics */}
+        <section className="mb-16">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
+              <Eye className="w-6 h-6 text-blue-400" />
+            </div>
+            <h2 className="text-3xl font-bold">Detailed Metrics</h2>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-6">
+            {metrics.map((metric, index) => {
+              const Icon = metric.icon;
+              return (
+                <Card key={metric.label} className="glass-card border-0 animate-fade-in" style={{animationDelay: `${index * 0.1}s`}}>
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                        <Icon className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold">{metric.label}</h4>
+                          <Badge 
+                            variant={metric.status === "Excellent" ? "default" : "secondary"}
+                            className={metric.status === "Excellent" ? "bg-green-500" : ""}
+                          >
+                            {metric.status}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="mt-2">
-                      <p className="leading-relaxed">
-                        {item.text.split(' ').map((word, index) => {
-                          const isHighlight = item.highlights?.includes(word.toLowerCase().replace(/[.,]/g, ''));
-                          const isFiller = item.fillerWords?.includes(word.toLowerCase().replace(/[.,]/g, ''));
-                          
-                          return (
-                            <span
-                              key={index}
-                              className={`${
-                                isHighlight ? 'bg-green-500/20 text-green-400' :
-                                isFiller ? 'bg-yellow-500/20 text-yellow-400' : ''
-                              }`}
-                            >
-                              {word}{' '}
-                            </span>
-                          );
-                        })}
-                      </p>
-                      
-                      {(item.highlights || item.fillerWords) && (
-                        <div className="flex gap-4 mt-3 text-xs">
-                          {item.highlights && (
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-full bg-green-400" />
-                              <span className="text-green-400">Key terms</span>
-                            </div>
-                          )}
-                          {item.fillerWords && (
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-full bg-yellow-400" />
-                              <span className="text-yellow-400">Filler words</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="metrics" className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              {metrics.map((metric) => (
-                <Card key={metric.label} className="glass-card border-0">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium">{metric.label}</h4>
-                      <Badge 
-                        variant={metric.status === "Excellent" ? "default" : "secondary"}
-                        className={metric.status === "Excellent" ? "bg-green-500" : ""}
-                      >
-                        {metric.status}
-                      </Badge>
-                    </div>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between text-sm">
                         <span>Score</span>
-                        <span className="font-semibold">{metric.value}%</span>
+                        <span className="font-bold text-lg">{metric.value}%</span>
                       </div>
-                      <Progress value={metric.value} className="h-2" />
+                      <Progress value={metric.value} className="h-3" />
                       <p className="text-sm text-muted-foreground">{metric.description}</p>
                     </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          </TabsContent>
+              );
+            })}
+          </div>
+        </section>
 
-          <TabsContent value="suggestions" className="space-y-4">
-            {suggestedAnswers.map((item, index) => (
-              <Card key={index} className="glass-card border-0">
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                      <Lightbulb className="w-4 h-4 text-primary" />
+        {/* Suggestions Section */}
+        <section className="mb-16">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
+              <Lightbulb className="w-6 h-6 text-purple-400" />
+            </div>
+            <h2 className="text-3xl font-bold">Personalized Suggestions</h2>
+          </div>
+          
+          <div className="space-y-6">
+            {suggestions.map((item, index) => (
+              <Card key={index} className="glass-card border-0 animate-fade-in" style={{animationDelay: `${index * 0.1}s`}}>
+                <CardContent className="p-8">
+                  <h4 className="font-bold text-xl mb-4 text-primary">{item.question}</h4>
+                  
+                  <div className="space-y-6">
+                    <div>
+                      <h5 className="font-semibold mb-2 text-muted-foreground">Your Response:</h5>
+                      <p className="text-sm bg-muted/30 p-4 rounded-lg italic">"{item.current}"</p>
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium mb-2">{item.question}</h4>
-                      <p className="text-muted-foreground leading-relaxed">{item.suggestion}</p>
+                    
+                    <div>
+                      <h5 className="font-semibold mb-2 text-blue-400">💡 Suggestion:</h5>
+                      <p className="text-sm leading-relaxed">{item.suggestion}</p>
+                    </div>
+                    
+                    <div>
+                      <h5 className="font-semibold mb-2 text-green-400">✨ Structure to Follow:</h5>
+                      <p className="text-sm leading-relaxed font-mono bg-green-500/10 p-4 rounded-lg">
+                        {item.improvement}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
-          </TabsContent>
-        </Tabs>
+          </div>
+        </section>
+
+        {/* Final CTA */}
+        <div className="text-center">
+          <Card className="glass-card border-0 max-w-md mx-auto">
+            <CardContent className="p-8">
+              <h3 className="text-xl font-bold mb-4">Ready for Another Round?</h3>
+              <p className="text-muted-foreground mb-6">Keep practicing to improve your scores!</p>
+              <Button 
+                onClick={() => navigate("/interview-setup")} 
+                className="w-full bg-gradient-primary hover:opacity-90 h-12"
+              >
+                <Play className="w-5 h-5 mr-2" />
+                Start New Interview
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
