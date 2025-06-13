@@ -28,51 +28,102 @@ const SessionSummary = () => {
   const navigate = useNavigate();
   const [scoreAnimated, setScoreAnimated] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [analysisData, setAnalysisData] = useState<any>(null);
+  const [sessionInfo, setSessionInfo] = useState<any>(null);
 
+  // Load real analysis data from localStorage
+  useEffect(() => {
+    try {
+      const storedAnalysis = localStorage.getItem('interviewAnalysis');
+      const storedSession = localStorage.getItem('interviewSession');
+      
+      if (storedAnalysis) {
+        const analysis = JSON.parse(storedAnalysis);
+        setAnalysisData(analysis);
+        console.log('📊 Loaded interview analysis:', analysis);
+      }
+      
+      if (storedSession) {
+        const session = JSON.parse(storedSession);
+        setSessionInfo(session);
+        console.log('📝 Loaded session info:', session);
+      }
+    } catch (error) {
+      console.error('Failed to load analysis data:', error);
+    }
+  }, []);
+
+  // Derived data from real analysis or fallback to mock data
   const sessionData = {
-    date: "Today, 3:45 PM",
-    duration: "14 minutes",
+    date: sessionInfo ? new Date(sessionInfo.timestamp).toLocaleString() : "Today, 3:45 PM",
+    duration: sessionInfo ? `${Math.round(sessionInfo.duration / 60)} minutes` : "14 minutes", 
     company: "Google",
     role: "Backend Engineer",
-    type: "Behavioral",
-    overallScore: 85
+    type: "Technical",
+    overallScore: analysisData?.analysis?.overall_score || 85
   };
 
-  const strengths = [
+  const strengths = analysisData?.analysis?.strengths || [
     "Clear technical explanations",
-    "Good use of specific examples",
+    "Good use of specific examples", 
     "Confident delivery",
     "Structured responses"
   ];
 
-  const improvements = [
+  const improvements = analysisData?.analysis?.improvements || [
     "Use STAR method more consistently",
     "Reduce filler words (um, like)",
-    "Provide more quantified results",
+    "Provide more quantified results", 
     "Practice concise answers"
   ];
 
   const metrics = [
-    { label: "Pace", value: 78, status: "Good", description: "Optimal speaking speed", icon: Clock },
-    { label: "Clarity", value: 92, status: "Excellent", description: "Clear articulation", icon: MessageSquare },
-    { label: "STAR Method", value: 73, status: "Good", description: "Structured responses", icon: Target },
-    { label: "Confidence", value: 81, status: "Good", description: "Confident delivery", icon: TrendingUp }
-  ];
-
-  const suggestions = [
-    {
-      question: "Tell me about yourself",
-      current: "I'm a software engineer with 3 years of experience...",
-      suggestion: "Consider starting with a brief overview, then highlight 2-3 key achievements that relate to the role.",
-      improvement: "Structure: Brief intro → Key achievements → Relevant skills → Connection to role"
+    { 
+      label: "Communication", 
+      value: analysisData?.analysis?.detailed_metrics?.communication?.score || 78, 
+      status: getMetricStatus(analysisData?.analysis?.detailed_metrics?.communication?.score || 78), 
+      description: analysisData?.analysis?.detailed_metrics?.communication?.feedback || "Clear articulation", 
+      icon: MessageSquare 
     },
-    {
-      question: "Challenging technical problem",
-      current: "Recently, we had a performance issue...",
-      suggestion: "Use the STAR method more explicitly to showcase your problem-solving process.",
-      improvement: "Situation → Task → Action (be specific) → Result (quantify impact)"
+    { 
+      label: "Technical Depth", 
+      value: analysisData?.analysis?.detailed_metrics?.technical_depth?.score || 85, 
+      status: getMetricStatus(analysisData?.analysis?.detailed_metrics?.technical_depth?.score || 85), 
+      description: analysisData?.analysis?.detailed_metrics?.technical_depth?.feedback || "Strong technical understanding", 
+      icon: Target 
+    },
+    { 
+      label: "Structure", 
+      value: analysisData?.analysis?.detailed_metrics?.structure?.score || 73, 
+      status: getMetricStatus(analysisData?.analysis?.detailed_metrics?.structure?.score || 73), 
+      description: analysisData?.analysis?.detailed_metrics?.structure?.feedback || "Organized responses", 
+      icon: TrendingUp 
+    },
+    { 
+      label: "Confidence", 
+      value: analysisData?.analysis?.detailed_metrics?.confidence?.score || 81, 
+      status: getMetricStatus(analysisData?.analysis?.detailed_metrics?.confidence?.score || 81), 
+      description: analysisData?.analysis?.detailed_metrics?.confidence?.feedback || "Confident delivery", 
+      icon: Clock 
     }
   ];
+
+  const suggestions = analysisData?.analysis?.personalized_suggestions || [
+    {
+      question: "Tell me about yourself",
+      user_response: "I'm a software engineer with 3 years of experience...",
+      suggestion: "Consider starting with a brief overview, then highlight 2-3 key achievements that relate to the role.",
+      improvement_framework: "Structure: Brief intro → Key achievements → Relevant skills → Connection to role"
+    }
+  ];
+
+  function getMetricStatus(score: number): string {
+    if (score >= 90) return "Excellent";
+    if (score >= 80) return "Very Good";
+    if (score >= 70) return "Good";
+    if (score >= 60) return "Fair";
+    return "Needs Work";
+  }
 
   // Trigger confetti and score animation on mount
   useEffect(() => {
@@ -296,7 +347,7 @@ const SessionSummary = () => {
                   <div className="space-y-6">
                     <div>
                       <h5 className="font-semibold mb-2 text-muted-foreground">Your Response:</h5>
-                      <p className="text-sm bg-muted/30 p-4 rounded-lg italic">"{item.current}"</p>
+                      <p className="text-sm bg-muted/30 p-4 rounded-lg italic">"{item.user_response}"</p>
                     </div>
                     
                     <div>
@@ -307,7 +358,7 @@ const SessionSummary = () => {
                     <div>
                       <h5 className="font-semibold mb-2 text-green-400">✨ Structure to Follow:</h5>
                       <p className="text-sm leading-relaxed font-mono bg-green-500/10 p-4 rounded-lg">
-                        {item.improvement}
+                        {item.improvement_framework}
                       </p>
                     </div>
                   </div>

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Mic, Github, Mail, Sparkles, Zap, Target } from "lucide-react";
 import FloatingElement from "@/components/FloatingElement";
+import { useAudio } from "@/hooks/useAudio";
 
 const Onboarding = () => {
   const [step, setStep] = useState(1);
@@ -16,10 +17,19 @@ const Onboarding = () => {
   const [role, setRole] = useState("");
   const [experience, setExperience] = useState("");
   const navigate = useNavigate();
+  const audio = useAudio();
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step < 3) {
       setStep(step + 1);
+    } else if (step === 3) {
+      // Request microphone permission before proceeding
+      const hasPermission = await audio.requestPermission();
+      if (hasPermission) {
+        navigate("/dashboard");
+      } else {
+        alert("Microphone access is required for voice interviews. Please enable it in your browser settings.");
+      }
     } else {
       navigate("/dashboard");
     }

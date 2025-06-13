@@ -11,6 +11,8 @@ import LiveInterview from "./pages/LiveInterview";
 import SessionSummary from "./pages/SessionSummary";
 import SessionHistory from "./pages/SessionHistory";
 import Settings from "./pages/Settings";
+import TestAudio from "./pages/TestAudio";
+import AudioDemo from "./pages/AudioDemo";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +31,8 @@ const App = () => (
           <Route path="/session-summary" element={<SessionSummary />} />
           <Route path="/history" element={<SessionHistory />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/test-audio" element={<TestAudio />} />
+          <Route path="/audio-demo" element={<AudioDemo />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
