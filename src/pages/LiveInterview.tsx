@@ -10,10 +10,16 @@ import {
   MessageCircle,
   Volume2,
   Radio,
-  Square
+  Square,
+  Camera,
+  CameraOff,
+  Palette
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { SimpleAvatar } from "@/components/SimpleAvatar";
+import { InteractiveRobotSpline } from "@/components/blocks/interactive-3d-robot";
+import { useVideoAnalysis } from "@/hooks/useVideoAnalysis";
+
+type Theme = 'dark' | 'purple';
 
 const LiveInterview = () => {
   const navigate = useNavigate();
@@ -21,6 +27,9 @@ const LiveInterview = () => {
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Theme state
+  const [theme, setTheme] = useState<Theme>('dark');
   
   // Interview State
   const [sessionId] = useState<string>('behavioral-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9));
@@ -49,6 +58,42 @@ const LiveInterview = () => {
   const audioQueueRef = useRef<string[]>([]);
   const isPlayingRef = useRef(false);
 
+  // Video analysis hook for webcam
+  const videoAnalysis = useVideoAnalysis();
+
+  // 3D Robot Scene URL
+  const ROBOT_SCENE_URL = "https://prod.spline.design/PyzDhpQ9E5f1E3MT/scene.splinecode";
+
+  // Theme configurations (matching Auth page)
+  const themes = {
+    dark: {
+      background: "bg-gradient-to-br from-gray-900 via-black to-gray-900",
+      overlay: "bg-gradient-to-br from-gray-900/40 via-black/60 to-gray-900/40",
+      card: "bg-black/40 backdrop-blur-xl border-gray-800/50",
+      text: {
+        primary: "text-white",
+        secondary: "text-gray-300",
+        muted: "text-gray-400"
+      },
+      accent: "from-blue-500 to-cyan-500",
+      robotOverlay: "bg-gray-700/20 backdrop-brightness-110"
+    },
+    purple: {
+      background: "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900",
+      overlay: "bg-gradient-to-br from-blue-900/20 via-purple-900/30 to-pink-900/20",
+      card: "bg-white/5 backdrop-blur-xl border-white/10",
+      text: {
+        primary: "text-white",
+        secondary: "text-gray-300",
+        muted: "text-gray-400"
+      },
+      accent: "from-blue-500 to-purple-600",
+      robotOverlay: "bg-purple-800/20 backdrop-brightness-110"
+    }
+  };
+
+  const currentTheme = themes[theme];
+
   // Check authentication on mount
   useEffect(() => {
     const checkAuth = async () => {
@@ -73,7 +118,7 @@ const LiveInterview = () => {
         setIsAuthenticated(true);
       } finally {
         setIsLoading(false);
-      }
+                  }
     };
     
     checkAuth();
@@ -129,7 +174,7 @@ const LiveInterview = () => {
       // Get API key
       const apiKey = import.meta.env.VITE_OPENAI_API_KEY || prompt('OpenAI API Key:');
       if (!apiKey) throw new Error('Need API key');
-      
+    
       // Connect WebSocket
       const ws = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-mini-realtime-preview', [
         'realtime',
@@ -141,14 +186,14 @@ const LiveInterview = () => {
         console.log('Connected!');
         setIsConnected(true);
         setIsConnecting(false);
-        setAiMessage("Hey! So... how's it going? Just wanted to chat and get to know you a bit, you know?");
+        setAiMessage("Hi there! Thanks for taking the time to chat with me today. I'm excited to learn more about your background and experiences. How are you feeling?");
         
         // Configure session for behavioral interview
         ws.send(JSON.stringify({
           type: 'session.update',
           session: {
             modalities: ['text', 'audio'],
-            instructions: 'You\'re a regular person having a casual conversation. CRITICAL: When you see [INTERRUPTION], you were just interrupted mid-sentence like a real human. React INSTANTLY with natural interruption responses like "Oh!" "Wait, what?" "Huh?" "Sorry, what?" "Oh, you mean..." and then IMMEDIATELY respond to what they said. NEVER continue your previous thought - completely abandon it and focus on their interruption. Be super natural with filler words like "um", "uh", "you know", "like". React genuinely to everything they say. Don\'t be formal or structured. Just be a normal person having a conversation who gets interrupted and responds naturally to interruptions.',
+            instructions: 'You are a friendly, experienced interviewer conducting a behavioral interview. Be conversational and natural, not robotic or overly formal. Use filler words like "um", "uh", "you know", "like" to sound human. Ask follow-up questions about their experiences, dig deeper into their stories, and show genuine interest. Focus on behavioral questions like "Tell me about a time when..." and "How did you handle..." but keep it conversational. CRITICAL: When you see [INTERRUPTION], you were just interrupted mid-sentence like a real human interviewer would be. React naturally with "Oh!" "Wait, what?" "Sorry, what?" and then respond to what they said. Completely abandon your previous thought and focus on their interruption. Be encouraging and make them feel comfortable sharing their experiences.',
             voice: 'ash',
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
@@ -169,7 +214,7 @@ const LiveInterview = () => {
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
         console.log('Message:', msg.type);
-        
+    
         // Track user speaking state - INSTANT interruption detection
         if (msg.type === 'input_audio_buffer.speech_started') {
           console.log('🎤 User started speaking');
@@ -178,7 +223,7 @@ const LiveInterview = () => {
           // INSTANT interruption handling - like real humans
           if (isAIResponding) {
             console.log('🚨 INSTANT interruption detected - AI was speaking, user started talking');
-            
+    
             // NUCLEAR OPTION - Stop everything immediately
             if (wsRef.current?.readyState === WebSocket.OPEN) {
               // Rapid-fire cancel commands
@@ -194,7 +239,7 @@ const LiveInterview = () => {
             isPlayingRef.current = false;
             setIsAIResponding(false);
             setConversationLocked(false);
-            
+    
             // Force stop any browser audio playback
             try {
               if (audioContextRef.current) {
@@ -217,8 +262,8 @@ const LiveInterview = () => {
           console.log('🎤 User stopped speaking');
           setIsUserSpeaking(false);
           // No locking - keep it natural
-        }
-        
+    }
+    
         // Debug: Log when audio buffer is committed
         if (msg.type === 'input_audio_buffer.committed') {
           console.log('📝 Audio buffer committed - processing speech');
@@ -248,8 +293,8 @@ const LiveInterview = () => {
           // Clear audio queue when response is cancelled
           audioQueueRef.current = [];
           isPlayingRef.current = false;
-        }
-        
+      }
+      
         if (msg.type === 'conversation.item.input_audio_transcription.completed') {
           console.log('👤 User said:', msg.transcript);
           setUserSpeech(msg.transcript);
@@ -257,7 +302,7 @@ const LiveInterview = () => {
           // IMMEDIATELY respond to user interruption - no delays, no analysis
           if (wsRef.current?.readyState === WebSocket.OPEN) {
             console.log('🎯 User spoke - IMMEDIATELY responding to what they said');
-            
+
             // Simple, direct response to whatever user said
             const directResponse = `[INTERRUPTION] User just said: "${msg.transcript}". Stop whatever you were saying and respond directly to this. Be natural like "Oh!" or "Wait, what?" and then address what they said.`;
             
@@ -284,7 +329,7 @@ const LiveInterview = () => {
           const fullResponse = msg.transcript;
           console.log('🤖 AI responded:', fullResponse);
           setAiMessage(fullResponse);
-          
+        
           // Add to conversation history
           setConversationHistory(prev => [...prev, {
             user: userSpeech,
@@ -299,7 +344,7 @@ const LiveInterview = () => {
           // Only queue audio if user isn't speaking (to allow instant interruptions)
           if (!isUserSpeaking) {
             queueAudio(msg.delta);
-          } else {
+      } else {
             console.log('🚫 Skipping audio delta - user is speaking (interruption)');
           }
         }
@@ -427,7 +472,7 @@ const LiveInterview = () => {
       } catch (error) {
         console.error('Audio playback error:', error);
         resolve();
-      }
+        }
     });
   };
 
@@ -439,9 +484,9 @@ const LiveInterview = () => {
       type: 'behavioral_realtime',
       duration: elapsedTime,
       conversationHistory,
-      timestamp: Date.now()
-    };
-    
+        timestamp: Date.now()
+      };
+      
     localStorage.setItem('behavioralSessionSummary', JSON.stringify(sessionData));
     navigate("/session-summary");
   };
@@ -457,7 +502,7 @@ const LiveInterview = () => {
     // Clear audio queue and stop playback
     audioQueueRef.current = [];
     isPlayingRef.current = false;
-    
+      
     // Reset conversation state
     setIsUserSpeaking(false);
     setIsAIResponding(false);
@@ -487,17 +532,17 @@ const LiveInterview = () => {
 
   const getStateDisplay = () => {
     if (isUserSpeaking) {
-      return {
-        text: "I'm listening...",
-        color: "text-green-400",
-        animation: "pulse-glow"
-      };
+        return {
+          text: "I'm listening...",
+          color: "text-green-400",
+          animation: "pulse-glow"
+        };
     } else if (isAIResponding) {
-      return {
-        text: "AI is speaking...",
-        color: "text-blue-400",
-        animation: "pulse-glow"
-      };
+        return {
+          text: "AI is speaking...",
+          color: "text-blue-400",
+          animation: "pulse-glow"
+        };
     } else if (isConnecting) {
       return {
         text: "Connecting...",
@@ -511,11 +556,11 @@ const LiveInterview = () => {
         animation: ""
       };
     } else {
-      return {
+        return {
         text: "Ready to listen...",
-        color: "text-muted-foreground", 
-        animation: ""
-      };
+          color: "text-muted-foreground", 
+          animation: ""
+        };
     }
   };
 
@@ -533,34 +578,43 @@ const LiveInterview = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-32 h-32 bg-purple-500/10 rounded-full blur-xl animate-pulse" />
-        <div className="absolute top-40 right-20 w-24 h-24 bg-blue-500/10 rounded-full blur-lg animate-pulse" style={{ animationDelay: '2s' }} />
-        <div className="absolute bottom-32 left-1/4 w-40 h-40 bg-green-500/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '4s' }} />
+    <div className={`relative w-screen h-screen overflow-hidden ${currentTheme.background}`}>
+      {/* Animated Background Overlay */}
+      <div className={`absolute inset-0 ${currentTheme.overlay} animate-pulse`} />
+      
+      {/* Theme Toggle */}
+      <div className="absolute top-8 right-8 z-20">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setTheme(theme === 'dark' ? 'purple' : 'dark')}
+          className={`${currentTheme.card} ${currentTheme.text.secondary} border-gray-700/50 hover:${currentTheme.text.primary} transition-all duration-300`}
+        >
+          <Palette className="w-4 h-4 mr-2" />
+          {theme === 'dark' ? 'Purple' : 'Dark'}
+        </Button>
       </div>
 
-      {/* Enhanced Header */}
-      <div className="relative z-10 bg-gray-800/50 backdrop-blur-xl border-b border-gray-700/50 p-4 shadow-lg">
-        <div className="container mx-auto flex items-center justify-between">
+      {/* Header Bar - Zoom Style */}
+      <div className={`absolute top-0 left-0 right-0 z-10 ${currentTheme.card} border-b border-gray-700/50 p-4`}>
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className="w-4 h-4 rounded-full bg-red-500 animate-pulse" />
-                <div className="absolute inset-0 w-4 h-4 rounded-full bg-red-500 animate-ping opacity-75" />
+                <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                <div className="absolute inset-0 w-3 h-3 rounded-full bg-red-500 animate-ping opacity-75" />
               </div>
-              <span className="text-lg font-semibold text-white">Live Interview</span>
+              <span className={`text-lg font-semibold ${currentTheme.text.primary}`}>AI Interview Session</span>
             </div>
-            <Badge className="bg-gradient-to-r from-purple-500 to-blue-500 text-white border-0 px-4 py-2 text-sm font-medium">
-              🏢 Google • Backend Engineer
+            <Badge className={`bg-gradient-to-r ${currentTheme.accent} text-white border-0 px-4 py-2 text-sm font-medium`}>
+              🤖 AI Behavioral Interview
             </Badge>
           </div>
           
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3 bg-gray-700/50 rounded-full px-4 py-2 backdrop-blur-sm">
-              <Clock className="w-5 h-5 text-blue-400" />
-              <span className="text-lg font-mono text-white">{formatTime(elapsedTime)}</span>
+          <div className="flex items-center gap-4">
+            <div className={`flex items-center gap-3 ${currentTheme.card} rounded-full px-4 py-2`}>
+              <Clock className="w-4 h-4 text-blue-400" />
+              <span className={`text-sm font-mono ${currentTheme.text.primary}`}>{formatTime(elapsedTime)}</span>
             </div>
 
             {/* Connection Status */}
@@ -569,12 +623,12 @@ const LiveInterview = () => {
               isConnecting ? 'border-yellow-500 bg-yellow-500/10' :
               'border-red-500 bg-red-500/10'
             }`}>
-              <Radio className={`h-4 w-4 ${
+              <Radio className={`h-3 w-3 ${
                 isConnected ? 'text-green-400' :
                 isConnecting ? 'text-yellow-400 animate-pulse' :
                 'text-red-400'
               }`} />
-              <span className={`text-sm ${
+              <span className={`text-xs ${
                 isConnected ? 'text-green-400' :
                 isConnecting ? 'text-yellow-400' :
                 'text-red-400'
@@ -590,7 +644,7 @@ const LiveInterview = () => {
               className="border-gray-600 text-gray-300 hover:bg-gray-700"
               disabled={!isConnected}
             >
-              {audioEnabled ? <Volume2 className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+              {audioEnabled ? <Volume2 className="h-3 w-3" /> : <MicOff className="h-3 w-3" />}
             </Button>
             
             <Button
@@ -604,104 +658,91 @@ const LiveInterview = () => {
             
             <Button
               onClick={handleEndInterview}
-              className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0 px-6 py-2 rounded-full font-medium shadow-lg transition-all duration-200 hover:scale-105"
+              className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0 px-4 py-2 rounded-lg font-medium shadow-lg transition-all duration-200 hover:scale-105"
             >
-              <Square className="w-4 h-4 mr-2" />
-              End Interview
+              <Square className="w-3 h-3 mr-2" />
+              End
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Main Content Area - Centered for Eye Contact */}
-      <div className="flex-1 flex relative z-10">
-        {/* Left Side - Just Pulsating Emoji */}
-        <div className="w-20 flex items-center justify-center">
-          <div className="text-4xl animate-pulse">
-            🎤
-          </div>
-        </div>
-
-        {/* Center - Avatar and Conversation (Eye Contact) */}
-        <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-8 max-w-4xl mx-auto">
-          {/* AI Avatar - Centered for Eye Contact */}
-          <div className="relative">
-            <SimpleAvatar 
+      {/* Main Content */}
+      <div className="absolute inset-0 pt-20 pb-6 px-6 flex items-center justify-center">
+        <div className="w-full max-w-5xl h-[70vh] flex rounded-xl overflow-hidden shadow-2xl border border-gray-700/60 bg-black/40">
+          {/* LEFT – Robot interviewer */}
+          <div className="relative flex-1 bg-black">
+            <InteractiveRobotSpline
+              scene={ROBOT_SCENE_URL}
+              disableFollow
               isSpeaking={isAIResponding}
-              isListening={isUserSpeaking}
-              className="mb-4"
-            />
-            
-            {/* Status Display - Right under avatar */}
-            <div className="text-center mt-6">
-              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
-                isAIResponding 
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
-                  : isUserSpeaking
-                  ? 'bg-green-500/20 text-green-300 border border-green-500/30'
-                  : isConnecting
-                  ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
-                  : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
-              }`}>
-                {stateDisplay.text}
-              </div>
-            </div>
-          </div>
-
-          {/* Current Question */}
-          <div className="bg-gray-800/40 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50 shadow-xl max-w-2xl w-full">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
-                <MessageCircle className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-medium text-purple-300">AI Interviewer</span>
-                  {isTyping && <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />}
-                </div>
-                <p className="text-lg leading-relaxed text-white min-h-[2rem]">
-                  {displayedQuestion}
-                  {isTyping && <span className="animate-pulse text-purple-400">|</span>}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Live Transcript */}
-          {userSpeech && (
-            <div className="bg-blue-500/10 backdrop-blur-xl rounded-2xl p-6 border border-blue-500/30 shadow-xl max-w-2xl w-full">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
-                  <Mic className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-sm font-medium text-blue-300">You said:</span>
+              className="absolute inset-0 pointer-events-none scale-110 translate-y-10" />
+            <div className="absolute inset-0" style={{pointerEvents:'auto'}} />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/20 to-transparent pointer-events-none" />
+            {/* Speech overlay */}
+            {isConnected && (
+              <div className="absolute bottom-4 left-4 right-4 z-10 space-y-4">
+                {/* AI Speech Bubble */}
+                <div className={`${currentTheme.card} rounded-2xl p-4 shadow-xl`}>
+                  <div className="flex items-start gap-4">
+                    <div className={`w-10 h-10 rounded-full bg-gradient-to-r ${currentTheme.accent} flex items-center justify-center flex-shrink-0`}>
+                      <MessageCircle className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`text-xs font-medium ${currentTheme.text.secondary}`}>AI Interviewer</span>
+                        {isTyping && <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />}
+                        {isAIResponding && (
+                          <Badge variant="secondary" className="ml-1 px-1.5 py-0.5">
+                            <Radio className="w-3 h-3 mr-1 animate-pulse" />Speaking
+                          </Badge>
+                        )}
+                      </div>
+                      <p className={`text-base leading-relaxed ${currentTheme.text.primary} min-h-[1.5rem]`}>
+                        {displayedQuestion || aiMessage}
+                        {isTyping && <span className="animate-pulse text-blue-400">|</span>}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-lg leading-relaxed text-blue-100 min-h-[2rem]">
-                    {userSpeech}
-                  </p>
                 </div>
-              </div>
-            </div>
-          )}
 
-          {/* Status Messages */}
-          <div className="bg-gray-700/30 backdrop-blur-xl rounded-2xl p-4 border border-gray-600/50 max-w-2xl w-full">
-            <div className="text-center">
-              <p className="text-gray-300">
-                {isUserSpeaking ? 'I can hear you speaking... Continue!' : 
-                 isAIResponding ? 'AI is responding...' :
-                 isConnecting ? 'Connecting to AI interviewer...' :
-                 !isConnected ? 'Click Connect to start your interview' :
-                 'Ready to listen - start speaking naturally!'}
-              </p>
+                {/* User Transcript */}
+                {userSpeech && (
+                  <div className="bg-blue-500/10 backdrop-blur-xl rounded-2xl p-3 border border-blue-500/20 shadow-xl">
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
+                        <Mic className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-medium text-blue-300">You</span>
+                        </div>
+                        <p className="text-sm leading-relaxed text-blue-100">{userSpeech}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT – Webcam feed */}
+          <div className="relative w-[38%] bg-gray-800 border-l border-gray-700/60 flex flex-col">
+            {videoAnalysis.hasPermission && videoAnalysis.isRecording ? (
+              <video ref={videoAnalysis.videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gray-700">
+                <CameraOff className="w-8 h-8 text-gray-400" />
+              </div>
+            )}
+            <canvas ref={videoAnalysis.canvasRef} className="hidden" />
+            <div className="p-2 border-t border-gray-700/50 bg-black/40 flex justify-center">
+              <button onClick={videoAnalysis.isRecording ? videoAnalysis.stopVideoRecording : videoAnalysis.startVideoRecording} className={`flex items-center gap-2 text-xs px-3 py-1 rounded-md border transition-all ${videoAnalysis.isRecording ? 'border-red-400 text-red-300 hover:bg-red-500/20' : 'border-blue-400 text-blue-300 hover:bg-blue-500/20'}`}>
+                {videoAnalysis.isRecording ? (<><CameraOff className="w-3 h-3" />Stop</>) : (<><Camera className="w-3 h-3" />Start</>)}
+              </button>
             </div>
           </div>
         </div>
-
-        {/* Right Side - Empty for balance */}
-        <div className="w-20"></div>
       </div>
     </div>
   );
