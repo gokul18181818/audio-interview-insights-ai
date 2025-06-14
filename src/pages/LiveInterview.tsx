@@ -13,10 +13,14 @@ import {
 import { useAudio } from "@/hooks/useAudio";
 import { generateSpeech, playBase64Audio } from "@/utils/elevenlabs";
 import MicrophoneSetup from "@/components/MicrophoneSetup";
+import { SimpleAvatar } from "@/components/SimpleAvatar";
+import { useVideoAnalysis } from "@/hooks/useVideoAnalysis";
+import { VideoPreview } from "@/components/VideoPreview";
 
 const LiveInterview = () => {
   const navigate = useNavigate();
   const audio = useAudio();
+  const videoAnalysis = useVideoAnalysis();
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [displayedQuestion, setDisplayedQuestion] = useState("");
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -218,7 +222,13 @@ const LiveInterview = () => {
       // Speech recognition will be stopped by the useEffect cleanup
     }
     
-    // 5. Reset all states
+    // 5. Stop video recording and save metrics
+    console.log('📹 Stopping video recording and saving metrics...');
+    videoAnalysis.stopVideoRecording();
+    const videoMetrics = videoAnalysis.getSummaryMetrics();
+    console.log('📊 Video metrics collected:', videoMetrics);
+    
+    // 6. Reset all states
     setInterviewState('idle');
     setIsAutoRecording(false);
     setCurrentTranscript("");
@@ -228,11 +238,12 @@ const LiveInterview = () => {
     
     console.log('✅ ALL AUDIO FORCEFULLY STOPPED - Interview session terminated');
     
-    // 6. Save current session info immediately before navigation
+    // 7. Save current session info immediately before navigation
     const finalSessionInfo = {
       sessionId,
       duration: elapsedTime,
       conversationHistory,
+      videoMetrics,
       timestamp: Date.now()
     };
     localStorage.setItem('interviewSession', JSON.stringify(finalSessionInfo));
@@ -562,6 +573,10 @@ const LiveInterview = () => {
     // Enable auto-recording now that setup is complete
     setIsAutoRecording(true);
     console.log('🎤 Auto-recording enabled after setup completion');
+    
+    // Start video recording for body language analysis
+    videoAnalysis.startVideoRecording();
+    console.log('📹 Video recording started for body language analysis');
   };
 
   const handleMicSetupCancel = () => {
@@ -580,158 +595,160 @@ const LiveInterview = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="glass-card border-0 border-b border-muted/20 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex flex-col relative overflow-hidden">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-32 h-32 bg-purple-500/10 rounded-full blur-xl animate-pulse" />
+        <div className="absolute top-40 right-20 w-24 h-24 bg-blue-500/10 rounded-full blur-lg animate-pulse" style={{ animationDelay: '2s' }} />
+        <div className="absolute bottom-32 left-1/4 w-40 h-40 bg-green-500/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '4s' }} />
+      </div>
+
+      {/* Enhanced Header */}
+      <div className="relative z-10 bg-gray-800/50 backdrop-blur-xl border-b border-gray-700/50 p-4 shadow-lg">
         <div className="container mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-sm font-medium">Live Interview</span>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="w-4 h-4 rounded-full bg-red-500 animate-pulse" />
+                <div className="absolute inset-0 w-4 h-4 rounded-full bg-red-500 animate-ping opacity-75" />
+              </div>
+              <span className="text-lg font-semibold text-white">Live Interview</span>
             </div>
-            <Badge variant="outline" className="bg-primary/20 text-primary border-primary/30">
-              Google • Backend Engineer
+            <Badge className="bg-gradient-to-r from-purple-500 to-blue-500 text-white border-0 px-4 py-2 text-sm font-medium">
+              🏢 Google • Backend Engineer
             </Badge>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Clock className="w-4 h-4" />
-              {formatTime(elapsedTime)}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3 bg-gray-700/50 rounded-full px-4 py-2 backdrop-blur-sm">
+              <Clock className="w-5 h-5 text-blue-400" />
+              <span className="text-lg font-mono text-white">{formatTime(elapsedTime)}</span>
             </div>
             <Button
               onClick={handleEndInterview}
-              variant="destructive"
-              size="sm"
-              className="flex items-center gap-2"
+              className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0 px-6 py-2 rounded-full font-medium shadow-lg transition-all duration-200 hover:scale-105"
             >
-              <Square className="w-4 h-4" />
+              <Square className="w-4 h-4 mr-2" />
               End Interview
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Main Interview Area */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="max-w-4xl mx-auto text-center space-y-8">
-          {/* Voice Visualization */}
-          <div className="relative">
-            <div className={`w-48 h-48 mx-auto rounded-full bg-gradient-primary opacity-20 ${stateDisplay.animation} flex items-center justify-center`}>
-              <div className={`w-36 h-36 rounded-full bg-gradient-primary opacity-40 ${stateDisplay.animation} flex items-center justify-center`}>
-                <div className={`w-24 h-24 rounded-full bg-gradient-primary flex items-center justify-center ${stateDisplay.animation}`}>
-                  {interviewState === 'recording' && <Mic className="w-12 h-12 text-white" />}
-                  {interviewState === 'processing' && <MessageCircle className="w-12 h-12 text-white animate-spin" />}
-                  {interviewState === 'speaking' && <Volume2 className="w-12 h-12 text-white" />}
-                  {interviewState === 'idle' && <Mic className="w-12 h-12 text-white opacity-50" />}
-                </div>
-              </div>
-            </div>
-            
-            {/* State indicator */}
-            <div className="mt-4">
-              <p className={`text-lg font-medium ${stateDisplay.color}`}>
-                {stateDisplay.text}
-              </p>
-              
-              {/* Recording feedback */}
-              {audio.isRecording && (
-                <div className="mt-3 max-w-sm mx-auto space-y-2">
-                  <div className="text-sm text-center">
-                    Recording: {recordingDuration}s
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs">Level:</span>
-                    <div className="flex-1 bg-gray-700 rounded-full h-2">
-                      <div 
-                        className="bg-gradient-primary h-2 rounded-full transition-all duration-100"
-                        style={{ width: `${audio.audioLevel * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-xs">{Math.round(audio.audioLevel * 100)}%</span>
-                  </div>
-                  {audio.audioLevel > 0.1 && (
-                    <div className="text-xs text-green-400 text-center">
-                      ✓ Detecting your voice!
-                    </div>
-                  )}
-                </div>
-              )}
-              
+      {/* Main Content Area - Centered for Eye Contact */}
+      <div className="flex-1 flex relative z-10">
+        {/* Left Side - Just Pulsating Emoji */}
+        <div className="w-20 flex items-center justify-center">
+          <div className="text-4xl animate-pulse">
+            🎤
+          </div>
+        </div>
 
+        {/* Center - Avatar and Conversation (Eye Contact) */}
+        <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-8 max-w-4xl mx-auto">
+          {/* AI Avatar - Centered for Eye Contact */}
+          <div className="relative">
+            <SimpleAvatar 
+              isSpeaking={interviewState === 'speaking'}
+              isListening={interviewState === 'recording'}
+              className="mb-4"
+            />
+            
+            {/* Status Display - Right under avatar */}
+            <div className="text-center mt-6">
+              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                interviewState === 'speaking' 
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
+                  : interviewState === 'recording'
+                  ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                  : interviewState === 'processing'
+                  ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
+                  : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+              }`}>
+                {stateDisplay.text}
+              </div>
             </div>
           </div>
 
-          {/* Current Question with Typing Effect */}
-          <Card className="glass-card border-0 max-w-2xl mx-auto">
-            <div className="p-6">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-1">
-                  <MessageCircle className="w-4 h-4 text-primary" />
+          {/* Current Question */}
+          <div className="bg-gray-800/40 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50 shadow-xl max-w-2xl w-full">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
+                <MessageCircle className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm font-medium text-purple-300">AI Interviewer</span>
+                  {isTyping && <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse" />}
                 </div>
-                <div className="text-left">
-                  <p className="text-sm text-muted-foreground mb-2">AI Interviewer:</p>
-                  <p className="text-lg leading-relaxed min-h-[2rem]">
-                    {displayedQuestion}
-                    {isTyping && <span className="animate-pulse">|</span>}
+                <p className="text-lg leading-relaxed text-white min-h-[2rem]">
+                  {displayedQuestion}
+                  {isTyping && <span className="animate-pulse text-purple-400">|</span>}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Transcript */}
+          {(liveTranscript || (currentTranscript && interviewState === 'processing')) && (
+            <div className="bg-blue-500/10 backdrop-blur-xl rounded-2xl p-6 border border-blue-500/30 shadow-xl max-w-2xl w-full">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
+                  <Mic className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm font-medium text-blue-300">
+                      {liveTranscript ? 'You are saying...' : 'You said:'}
+                    </span>
+                    {liveTranscript && <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />}
+                  </div>
+                  <p className="text-lg leading-relaxed text-blue-100 min-h-[2rem]">
+                    {liveTranscript || currentTranscript}
+                    {liveTranscript && <span className="animate-pulse text-blue-400">|</span>}
                   </p>
                 </div>
               </div>
             </div>
-          </Card>
-
-          {/* Live Transcript Display */}
-          {(liveTranscript || (currentTranscript && interviewState === 'processing')) && (
-            <Card className="glass-card border-0 max-w-2xl mx-auto border-blue-500/30">
-              <div className="p-6">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-1">
-                    <Mic className="w-4 h-4 text-blue-400" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm text-blue-400 mb-2">
-                      {liveTranscript ? 'You are saying:' : 'You said:'}
-                    </p>
-                    <p className="text-lg leading-relaxed min-h-[2rem] text-blue-100">
-                      {liveTranscript || currentTranscript}
-                      {liveTranscript && <span className="animate-pulse text-blue-400">|</span>}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </Card>
           )}
 
-          {/* Instructions */}
-          <div className="text-center space-y-2">
-            <p className="text-muted-foreground">
-              🎤 Recording will start automatically after the AI finishes speaking
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Stop talking for 5 seconds to automatically finish your response
-            </p>
+          {/* Status Messages */}
+          <div className="bg-gray-700/30 backdrop-blur-xl rounded-2xl p-4 border border-gray-600/50 max-w-2xl w-full">
+            <div className="text-center">
+              <p className="text-gray-300">
+                {audio.isRecording ? 'Recording in progress... Speak naturally!' : 
+                 interviewState === 'processing' ? 'AI is analyzing your response...' :
+                 interviewState === 'speaking' ? 'AI is responding...' : 
+                 'Waiting for AI to finish speaking...'}
+              </p>
+              {!audio.hasPermission && (
+                <p className="text-red-400 mt-2 text-sm">
+                  🚨 Microphone permission required for recording
+                </p>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Right Side - Empty for balance */}
+        <div className="w-20"></div>
       </div>
 
-      {/* Bottom Status Bar */}
-      <div className="glass-card border-0 border-t border-muted/20 p-4">
-        <div className="container mx-auto flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">
-              {audio.isRecording ? '🎤 Recording... Speak naturally (5s silence to stop)' : 
-               interviewState === 'processing' ? '🔄 AI is processing your response...' :
-               interviewState === 'speaking' ? '🗣️ AI is responding...' : 
-               '⏳ Waiting for AI to finish speaking...'}
-            </p>
-            {!audio.hasPermission && (
-              <p className="text-xs text-red-400 mt-1">
-                🚨 Microphone permission needed for auto-recording
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Video Preview - Bottom Right */}
+      <VideoPreview
+        videoRef={videoAnalysis.videoRef}
+        canvasRef={videoAnalysis.canvasRef}
+        isRecording={videoAnalysis.isRecording}
+        hasPermission={videoAnalysis.hasPermission}
+        error={videoAnalysis.error}
+        onToggleRecording={() => {
+          if (videoAnalysis.isRecording) {
+            videoAnalysis.stopVideoRecording();
+          } else {
+            videoAnalysis.startVideoRecording();
+          }
+        }}
+      />
     </div>
   );
 };

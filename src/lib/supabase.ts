@@ -13,6 +13,7 @@ export const EDGE_FUNCTIONS = {
   audioWebSocket: `${supabaseUrl.replace('https://', 'wss://')}/functions/v1/audio-websocket`,
   codingFeedback: `${supabaseUrl}/functions/v1/coding-feedback`,
   codeExecutor: `${supabaseUrl}/functions/v1/code-executor`,
+  systemDesignFeedback: `${supabaseUrl}/functions/v1/system-design-feedback`,
 }
 
 // Database types for TypeScript

@@ -4,17 +4,19 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Onboarding from "./pages/Onboarding";
-import SignIn from "./pages/SignIn";
+import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import InterviewSetup from "./pages/InterviewSetup";
 import LiveInterview from "./pages/LiveInterview";
 import LiveCoding from "./pages/LiveCoding";
+import { LiveSystemDesign } from "./components/interviews/system-design/LiveSystemDesign";
 import SessionSummary from "./pages/SessionSummary";
 import SessionHistory from "./pages/SessionHistory";
 import Settings from "./pages/Settings";
 import TestAudio from "./pages/TestAudio";
 import AudioDemo from "./pages/AudioDemo";
+import VideoTest from "./pages/VideoTest";
+import EnhancedVideoTest from "./pages/EnhancedVideoTest";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,17 +28,20 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Onboarding />} />
-          <Route path="/sign-in" element={<SignIn />} />
+          <Route path="/" element={<Auth />} />
+          <Route path="/sign-in" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/interview-setup" element={<InterviewSetup />} />
           <Route path="/live-interview" element={<LiveInterview />} />
           <Route path="/live-coding" element={<LiveCoding />} />
+          <Route path="/live-system-design" element={<LiveSystemDesign />} />
           <Route path="/session-summary" element={<SessionSummary />} />
           <Route path="/history" element={<SessionHistory />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/test-audio" element={<TestAudio />} />
           <Route path="/audio-demo" element={<AudioDemo />} />
+          <Route path="/video-test" element={<VideoTest />} />
+          <Route path="/enhanced-video-test" element={<EnhancedVideoTest />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

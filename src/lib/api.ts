@@ -1,4 +1,5 @@
 import { supabase, EDGE_FUNCTIONS, InterviewSession, SessionTranscript, SessionMetrics } from './supabase'
+import { SystemDesignSession, WhiteboardSnapshot, AIFeedback } from './systemDesignTypes'
 
 // Helper function to make authenticated requests to Edge Functions
 async function makeAuthenticatedRequest(url: string, options: RequestInit = {}) {
@@ -182,6 +183,179 @@ export class AudioWebSocket {
       this.ws.close()
       this.ws = null
     }
+  }
+}
+
+// System Design Interview API
+export const systemDesignAPI = {
+  // Create a new system design session
+  async createSession(data: { 
+    problem_statement: string
+    interview_session_id?: string 
+  }): Promise<SystemDesignSession> {
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data: result, error } = await supabase
+      .from('system_design_sessions')
+      .insert([{
+        problem_statement: data.problem_statement,
+        interview_session_id: data.interview_session_id,
+        user_id: user.id,
+        current_phase: 'requirements',
+        phase_timings: {},
+        whiteboard_snapshots: [],
+        requirements_gathered: {},
+        ai_feedback_history: []
+      }])
+      .select()
+      .single()
+
+    if (error) throw error
+    return result
+  },
+
+  // Update phase and timing
+  async updatePhase(sessionId: string, phase: string, timeSpent: number): Promise<void> {
+    const { data: session } = await supabase
+      .from('system_design_sessions')
+      .select('phase_timings')
+      .eq('id', sessionId)
+      .single()
+
+    const updatedTimings = {
+      ...session?.phase_timings,
+      [phase]: timeSpent
+    }
+
+    const { error } = await supabase
+      .from('system_design_sessions')
+      .update({ 
+        current_phase: phase,
+        phase_timings: updatedTimings,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId)
+
+    if (error) throw error
+  },
+
+  // Save whiteboard snapshot
+  async saveSnapshot(sessionId: string, snapshot: {
+    image_data: string
+    elements_data: any
+    phase: string
+  }): Promise<void> {
+    const { data: session } = await supabase
+      .from('system_design_sessions')
+      .select('whiteboard_snapshots')
+      .eq('id', sessionId)
+      .single()
+
+    const newSnapshot: WhiteboardSnapshot = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      image_data: snapshot.image_data,
+      elements_data: snapshot.elements_data,
+      phase: snapshot.phase
+    }
+
+    const updatedSnapshots = [...(session?.whiteboard_snapshots || []), newSnapshot]
+
+    const { error } = await supabase
+      .from('system_design_sessions')
+      .update({ 
+        whiteboard_snapshots: updatedSnapshots,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId)
+
+    if (error) throw error
+  },
+
+  // Update requirements
+  async updateRequirements(sessionId: string, requirements: Record<string, any>): Promise<void> {
+    const { error } = await supabase
+      .from('system_design_sessions')
+      .update({ 
+        requirements_gathered: requirements,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId)
+
+    if (error) throw error
+  },
+
+  // Get AI feedback for current state
+  async getAIFeedback(data: {
+    whiteboardImage: string
+    transcript: string
+    currentPhase: string
+    requirements: Record<string, any>
+    sessionId: string
+  }): Promise<string> {
+    return makeAuthenticatedRequest(EDGE_FUNCTIONS.systemDesignFeedback, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }).then(result => result.feedback)
+  },
+
+  // Save AI feedback
+  async saveFeedback(sessionId: string, feedback: {
+    phase: string
+    feedback_text: string
+    diagram_analysis: string
+    transcript: string
+    suggestions: string[]
+  }): Promise<void> {
+    const { data: session } = await supabase
+      .from('system_design_sessions')
+      .select('ai_feedback_history')
+      .eq('id', sessionId)
+      .single()
+
+    const newFeedback: AIFeedback = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      ...feedback
+    }
+
+    const updatedFeedback = [...(session?.ai_feedback_history || []), newFeedback]
+
+    const { error } = await supabase
+      .from('system_design_sessions')
+      .update({ 
+        ai_feedback_history: updatedFeedback,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId)
+
+    if (error) throw error
+  },
+
+  // Get session with all data
+  async getSession(sessionId: string): Promise<SystemDesignSession> {
+    const { data, error } = await supabase
+      .from('system_design_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  // Complete the design session
+  async completeSession(sessionId: string): Promise<void> {
+    const { error } = await supabase
+      .from('system_design_sessions')
+      .update({ 
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId)
+
+    if (error) throw error
   }
 }
 

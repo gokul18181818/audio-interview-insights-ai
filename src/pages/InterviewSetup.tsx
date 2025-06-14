@@ -13,7 +13,8 @@ import {
   MessageSquare, 
   Briefcase,
   Play,
-  ChevronRight
+  ChevronRight,
+  Network
 } from "lucide-react";
 import Navigation from "@/components/Navigation";
 
@@ -35,7 +36,8 @@ const InterviewSetup = () => {
 
   const interviewTypes = [
     { id: "behavioral", label: "Behavioral", icon: MessageSquare, description: "STAR method questions about your experience" },
-    { id: "coding", label: "Coding", icon: Code, description: "Technical coding challenges and problems" }
+    { id: "coding", label: "Coding", icon: Code, description: "Technical coding challenges and problems" },
+    { id: "system_design", label: "System Design", icon: Network, description: "Architecture design with AI feedback and whiteboarding" }
   ];
 
   const canProceed = () => {
@@ -52,6 +54,8 @@ const InterviewSetup = () => {
       // Route to appropriate interview type
       if (selectedType === "coding") {
         navigate("/live-coding");
+      } else if (selectedType === "system_design") {
+        navigate("/live-system-design");
       } else {
         navigate("/live-interview");
       }

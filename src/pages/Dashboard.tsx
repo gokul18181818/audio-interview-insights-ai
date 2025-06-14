@@ -80,6 +80,45 @@ const Dashboard = () => {
             </Card>
           </div>
 
+          {/* Quick Access Testing Features */}
+          <div className="mt-16">
+            <h3 className="text-2xl font-bold text-center mb-8">🧪 Testing & Development</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+              <Button 
+                variant="outline" 
+                className="h-16 text-left justify-start"
+                onClick={() => navigate("/video-test")}
+              >
+                <div>
+                  <div className="font-semibold">Basic Video Test</div>
+                  <div className="text-sm text-muted-foreground">Current video analysis</div>
+                </div>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="h-16 text-left justify-start bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/30"
+                onClick={() => navigate("/enhanced-video-test")}
+              >
+                <div>
+                  <div className="font-semibold">🚀 Enhanced Video Test</div>
+                  <div className="text-sm text-muted-foreground">Advanced accuracy features</div>
+                </div>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="h-16 text-left justify-start"
+                onClick={() => navigate("/test-audio")}
+              >
+                <div>
+                  <div className="font-semibold">Audio Test</div>
+                  <div className="text-sm text-muted-foreground">Microphone testing</div>
+                </div>
+              </Button>
+            </div>
+          </div>
+
           {/* Quick Stats Preview */}
           <div className="mt-16 text-center">
             <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto">

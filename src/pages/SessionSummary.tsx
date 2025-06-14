@@ -23,6 +23,7 @@ import {
   Loader2
 } from "lucide-react";
 import Navigation from "@/components/Navigation";
+import { VideoMetricsReport } from "@/components/VideoMetricsReport";
 
 const SessionSummary = () => {
   const navigate = useNavigate();
@@ -416,6 +417,18 @@ const SessionSummary = () => {
               );
             })}
           </div>
+        </section>
+
+        {/* Video Analysis Section */}
+        <section className="mb-16">
+          <VideoMetricsReport 
+            metrics={sessionInfo?.videoMetrics || {
+              averagePosture: 0,
+              averageEyeContact: 0,
+              gestureBreakdown: { good: 0, neutral: 0, fidgeting: 0 },
+              totalSamples: 0
+            }}
+          />
         </section>
 
         {/* Suggestions Section */}
