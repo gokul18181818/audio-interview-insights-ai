@@ -22,23 +22,40 @@ export const VOICES: Voice[] = [
 let isGeneratingAudio = false;
 let audioQueue: string[] = [];
 
+// Global audio cleanup system
+let activeAudioElements: HTMLAudioElement[] = [];
+
+// Add function to stop all active audio
+export const stopAllAudio = () => {
+  console.log('🛑 Stopping all active audio elements:', activeAudioElements.length);
+  
+  // Stop all HTML audio elements
+  activeAudioElements.forEach(audio => {
+    audio.pause();
+    audio.currentTime = 0;
+    audio.src = '';
+  });
+  activeAudioElements = [];
+  
+  // Stop browser speech synthesis
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+  
+  console.log('✅ All audio stopped');
+};
+
 export const generateSpeech = async (
   text: string, 
   voiceId: string = 'EXAVITQu4vr4xnSDxMaL' // Default to Bella (ultra-smooth)
 ): Promise<string> => {
-  // Prevent overlapping audio generation
-  if (isGeneratingAudio) {
-    console.log('🔇 Audio generation already in progress, skipping duplicate request for:', text.substring(0, 50) + '...');
-    return 'skipped_duplicate_request';
-  }
-
-  // Check if this text is already being generated
+  // Allow concurrent audio generation for faster responses
+  // Only prevent exact duplicate text, not all overlapping audio
   if (audioQueue.includes(text)) {
-    console.log('🔇 This text is already in the queue, skipping:', text.substring(0, 50) + '...');
+    console.log('🔇 This exact text is already being generated, skipping:', text.substring(0, 50) + '...');
     return 'skipped_duplicate_text';
   }
 
-  isGeneratingAudio = true;
   audioQueue.push(text);
   
   try {
@@ -92,9 +109,11 @@ export const generateSpeech = async (
       throw new Error('All text-to-speech methods failed');
     }
   } finally {
-    // Always clean up state
-    isGeneratingAudio = false;
-    audioQueue = audioQueue.filter(t => t !== text);
+    // Remove from queue
+    const index = audioQueue.indexOf(text);
+    if (index > -1) {
+      audioQueue.splice(index, 1);
+    }
   }
 };
 
@@ -188,14 +207,27 @@ export const playBase64Audio = async (base64Audio: string, mimeType = 'audio/mpe
     
     const audio = new Audio(audioUrl);
     
+    // Track this audio element for global cleanup
+    activeAudioElements.push(audio);
+    
     return new Promise((resolve, reject) => {
       audio.onended = () => {
         URL.revokeObjectURL(audioUrl);
+        // Remove from active elements
+        const index = activeAudioElements.indexOf(audio);
+        if (index > -1) {
+          activeAudioElements.splice(index, 1);
+        }
         resolve();
       };
       
       audio.onerror = (error) => {
         URL.revokeObjectURL(audioUrl);
+        // Remove from active elements
+        const index = activeAudioElements.indexOf(audio);
+        if (index > -1) {
+          activeAudioElements.splice(index, 1);
+        }
         reject(error);
       };
       

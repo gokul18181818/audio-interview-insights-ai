@@ -70,11 +70,8 @@ export const useSystemDesign = () => {
         phaseStartTime: Date.now()
       }));
 
-      // Welcome message
-      const welcomeMessage = `Welcome to your system design interview! Today we'll be designing a URL shortener like bit.ly. We'll go through this in three phases: requirements clarification, high-level design, and scaling considerations. Let's start with understanding the requirements. What questions do you have about the scale and scope of this system?`;
-      
-      await speakMessage(welcomeMessage);
       console.log('✅ System design session started');
+      // Note: Welcome message is handled by LiveSystemDesign component
       
     } catch (error) {
       console.error('❌ Failed to start session:', error);

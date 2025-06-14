@@ -176,12 +176,12 @@ export const useInterview = () => {
       await audio.startRecording();
       setState(prev => ({ ...prev, status: 'listening' }));
 
-      // Set silence timeout (stop recording after 3 seconds of silence)
+      // Set silence timeout (stop recording after shorter silence)
       silenceTimeoutRef.current = setTimeout(() => {
         if (audio.isRecording) {
           audio.stopRecording();
         }
-      }, 5000); // 5 seconds max recording
+      }, 2000); // Reduced from 5000ms to 2000ms for faster response
 
     } catch (error) {
       console.error('Failed to start recording:', error);

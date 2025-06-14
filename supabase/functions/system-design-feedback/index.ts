@@ -24,6 +24,36 @@ Deno.serve(async (req) => {
     }: SystemDesignFeedbackRequest = await req.json()
 
     console.log(`🎯 System Design Feedback Request for phase: ${currentPhase}`)
+    console.log(`📝 Transcript: "${transcript}"`)
+    console.log(`🖼️ Whiteboard image length: ${whiteboardImage?.length || 0}`)
+    console.log(`🔍 Image starts with: ${whiteboardImage?.substring(0, 30)}`)
+    
+    // Validate OpenAI API key
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
+    if (!openaiApiKey) {
+      console.error('❌ OpenAI API key not configured')
+      return new Response(
+        JSON.stringify({ 
+          feedback: "I'm having trouble accessing my AI capabilities right now. The OpenAI API key is not configured. Please try again later." 
+        }),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          },
+          status: 200
+        }
+      )
+    }
+
+    console.log(`🔑 OpenAI API key configured: ${openaiApiKey ? 'YES' : 'NO'}`)
+    console.log(`🔑 API key length: ${openaiApiKey?.length || 0}`)
+    console.log(`🔑 API key starts with: ${openaiApiKey?.substring(0, 10)}...`)
+
+    // Check if we have a valid whiteboard image
+    const hasValidImage = whiteboardImage && 
+      whiteboardImage !== "data:image/png;base64,placeholder" && 
+      whiteboardImage.startsWith('data:image/')
 
     // Generate phase-specific prompt
     const systemPrompt = generateSystemPrompt(currentPhase, requirements)
@@ -33,12 +63,19 @@ CURRENT PHASE: ${currentPhase}
 REQUIREMENTS GATHERED: ${JSON.stringify(requirements, null, 2)}
 CANDIDATE'S EXPLANATION: "${transcript}"
 
+${hasValidImage ? `
+IMPORTANT: The candidate has drawn something on a whiteboard. Please carefully analyze the whiteboard drawing/diagram and incorporate your observations into your feedback. Describe what you can see on the whiteboard and how it relates to the system design.
+
+If the candidate is asking whether you can see the whiteboard (e.g., "can you see what's on the whiteboard"), acknowledge that you can see their drawing and describe what's visible.
+` : ''}
+
 Please analyze the candidate's approach and provide feedback on:
 1. Understanding of the current phase objectives
 2. Technical correctness and completeness
 3. Communication clarity
-4. One specific suggestion for improvement
-5. Encouragement and next steps
+${hasValidImage ? '4. Analysis of their whiteboard diagram/drawing' : '4. Suggestions for visual representation'}
+5. One specific suggestion for improvement
+6. Encouragement and next steps
 
 Keep response conversational, under 200 words, and suitable for text-to-speech.
 ${currentPhase === 'requirements' ? 'Focus on whether they\'re asking the right clarifying questions.' : ''}
@@ -46,16 +83,53 @@ ${currentPhase === 'architecture' ? 'Focus on the design choices and component r
 ${currentPhase === 'scaling' ? 'Focus on scalability solutions and bottleneck identification.' : ''}
 `
 
+    console.log(`📝 System prompt length: ${systemPrompt.length}`)
+    console.log(`📝 User prompt length: ${userPrompt.length}`)
+
     // Call OpenAI API (with vision if whiteboard image is available)
+    console.log('🚀 Making OpenAI API call...')
     const openaiResponse = await callOpenAI(systemPrompt, userPrompt, whiteboardImage)
     
     if (!openaiResponse.ok) {
-      console.error('❌ OpenAI API failed:', await openaiResponse.text())
-      return generateFallbackResponse(currentPhase, transcript)
+      const errorText = await openaiResponse.text()
+      console.error('❌ OpenAI API failed:', openaiResponse.status, errorText)
+      return new Response(
+        JSON.stringify({ 
+          feedback: `I'm having trouble processing your request right now. OpenAI API returned error ${openaiResponse.status}. Please try again.` 
+        }),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          },
+          status: 200
+        }
+      )
     }
 
     const result = await openaiResponse.json()
-    const feedback = result.choices[0]?.message?.content || generateFallbackMessage(currentPhase)
+    console.log('🔍 OpenAI response status:', openaiResponse.status)
+    console.log('🔍 OpenAI response headers:', Object.fromEntries(openaiResponse.headers.entries()))
+    console.log('🔍 OpenAI full response:', JSON.stringify(result, null, 2))
+    
+    const feedback = result.choices[0]?.message?.content
+    
+    if (!feedback) {
+      console.error('❌ No feedback content in OpenAI response')
+      console.error('❌ Response structure:', JSON.stringify(result, null, 2))
+      return new Response(
+        JSON.stringify({ 
+          feedback: "I received an empty response from the AI. Let me try to help anyway - could you tell me more about what you've drawn on the whiteboard?" 
+        }),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          },
+          status: 200
+        }
+      )
+    }
 
     console.log('✅ Generated AI feedback:', feedback.substring(0, 100) + '...')
 
@@ -71,11 +145,14 @@ ${currentPhase === 'scaling' ? 'Focus on scalability solutions and bottleneck id
 
   } catch (error) {
     console.error('❌ System design feedback error:', error)
+    console.error('❌ Error stack:', error.stack)
+    console.error('❌ Error message:', error.message)
+    console.error('❌ Error name:', error.name)
     
     // Return graceful fallback
     return new Response(
       JSON.stringify({ 
-        feedback: "Thank you for sharing your thoughts. You're making good progress. Please continue with your design approach." 
+        feedback: `I encountered an error while processing your request: ${error.message}. Please try again.` 
       }),
       { 
         headers: { 
@@ -151,7 +228,12 @@ async function callOpenAI(systemPrompt: string, userPrompt: string, whiteboardIm
     whiteboardImage !== "data:image/png;base64,placeholder" && 
     whiteboardImage.startsWith('data:image/')
 
-  const model = hasValidImage ? 'gpt-4-vision-preview' : 'gpt-4o'
+  console.log(`🔍 Has valid image: ${hasValidImage}`)
+  console.log(`🔍 Whiteboard image check: length=${whiteboardImage?.length}, starts with data:image=${whiteboardImage?.startsWith('data:image/')}, not placeholder=${whiteboardImage !== "data:image/png;base64,placeholder"}`)
+
+  // Use gpt-4.1-nano for cost efficiency (50x cheaper than gpt-4o)
+  const model = 'gpt-4.1-nano'
+  console.log(`🤖 Using model: ${model} (vision capable: ${hasValidImage})`)
   
   let messages: any[]
 
@@ -170,13 +252,25 @@ async function callOpenAI(systemPrompt: string, userPrompt: string, whiteboardIm
         ]
       }
     ]
+    console.log('📤 Sending vision request with image')
   } else {
     // Use text-only model
     messages = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
     ]
+    console.log('📤 Sending text-only request (no valid image)')
   }
+
+  console.log('📤 Request body preview:', JSON.stringify({
+    model,
+    messages: messages.map(msg => ({
+      ...msg,
+      content: typeof msg.content === 'string' ? msg.content.substring(0, 100) + '...' : '[VISION_CONTENT]'
+    })),
+    max_tokens: 250,
+    temperature: 0.7,
+  }, null, 2))
 
   return fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

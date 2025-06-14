@@ -83,7 +83,7 @@ const Dashboard = () => {
           {/* Quick Access Testing Features */}
           <div className="mt-16">
             <h3 className="text-2xl font-bold text-center mb-8">🧪 Testing & Development</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 max-w-5xl mx-auto">
               <Button 
                 variant="outline" 
                 className="h-16 text-left justify-start"
@@ -114,6 +114,17 @@ const Dashboard = () => {
                 <div>
                   <div className="font-semibold">Audio Test</div>
                   <div className="text-sm text-muted-foreground">Microphone testing</div>
+                </div>
+              </Button>
+
+              <Button 
+                variant="outline" 
+                className="h-16 text-left justify-start bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30"
+                onClick={() => navigate("/simple-live-coding")}
+              >
+                <div>
+                  <div className="font-semibold">✨ Simple Live Coding</div>
+                  <div className="text-sm text-muted-foreground">Clean AI coding interview</div>
                 </div>
               </Button>
             </div>

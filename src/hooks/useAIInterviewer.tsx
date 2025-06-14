@@ -200,10 +200,10 @@ RESPOND ONLY with the follow-up question/comment, nothing else.
     if (shouldFollowUp) {
       const followUp = await generateFollowUp(transcript, context);
       
-      // Delay slightly to feel natural
+      // Minimal delay for immediate response
       setTimeout(() => {
         speakResponse(followUp, 'followup');
-      }, 1000 + Math.random() * 1000); // 1-2 second delay
+      }, 200 + Math.random() * 300); // 0.2-0.5 second delay (much faster)
     }
   }, [generateFollowUp, speakResponse]);
 
@@ -212,7 +212,7 @@ RESPOND ONLY with the follow-up question/comment, nothing else.
     context: ConversationContext,
     silenceDuration: number
   ): Promise<void> => {
-    if (state.isSpeaking || silenceDuration < 3000) return;
+    if (state.isSpeaking || silenceDuration < 1500) return; // Reduced from 3000ms to 1500ms
 
     const interruption = await generateInterruption(context, silenceDuration);
     await speakResponse(interruption, 'interruption');
@@ -252,25 +252,62 @@ function generateFallbackFollowUp(userSpeech: string, phaseId: string): string {
 }
 
 async function shouldGenerateFollowUp(transcript: string, context: ConversationContext): Promise<boolean> {
+  console.log('🤔 Checking if AI should respond to:', transcript);
+  
   // Simple heuristics for when to follow up
   const recentAIResponses = context.conversationHistory
     .filter(turn => turn.speaker === 'ai')
     .slice(-2);
 
-  // Don't follow up too frequently
+  // Don't follow up too frequently - reduced cooldown for better interaction
   if (recentAIResponses.length > 0) {
     const lastAI = recentAIResponses[recentAIResponses.length - 1];
     const timeSinceLastAI = Date.now() - lastAI.timestamp;
-    if (timeSinceLastAI < 10000) return false; // Wait at least 10 seconds
+    if (timeSinceLastAI < 3000) { // Reduced from 10 seconds to 3 seconds
+      console.log('❌ Too soon since last AI response:', timeSinceLastAI, 'ms');
+      return false;
+    }
   }
 
-  // Follow up if user speech is substantial (more than 20 words)
   const wordCount = transcript.split(' ').length;
-  if (wordCount > 20) return true;
+  console.log('📊 Word count:', wordCount);
 
-  // Follow up if user mentions key concepts
-  const keyTerms = ['database', 'cache', 'api', 'service', 'scale', 'user', 'system'];
+  // More responsive conditions for interview setting
+  
+  // Always respond to greetings and test phrases
+  const greetings = ['hello', 'hi', 'hey', 'working', 'hear me', 'can you'];
+  const hasGreeting = greetings.some(term => transcript.toLowerCase().includes(term));
+  if (hasGreeting) {
+    console.log('✅ Responding to greeting/test phrase');
+    return true;
+  }
+
+  // Follow up if user speech is substantial (reduced threshold)
+  if (wordCount > 8) { // Reduced from 20 to 8 words
+    console.log('✅ Responding to substantial speech');
+    return true;
+  }
+
+  // Follow up if user mentions key concepts (expanded list)
+  const keyTerms = [
+    'database', 'cache', 'api', 'service', 'scale', 'user', 'system',
+    'design', 'architecture', 'url', 'shortener', 'requirements',
+    'load', 'storage', 'server', 'client', 'data', 'request'
+  ];
   const hasKeyTerms = keyTerms.some(term => transcript.toLowerCase().includes(term));
   
-  return hasKeyTerms && wordCount > 10;
+  if (hasKeyTerms && wordCount > 3) { // Reduced from 10 to 3 words
+    console.log('✅ Responding to key terms with sufficient length');
+    return true;
+  }
+
+  // Respond to questions (even short ones)
+  if (transcript.includes('?') || transcript.toLowerCase().includes('what') || 
+      transcript.toLowerCase().includes('how') || transcript.toLowerCase().includes('why')) {
+    console.log('✅ Responding to question');
+    return true;
+  }
+
+  console.log('❌ No response criteria met');
+  return false;
 } 

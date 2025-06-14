@@ -29,15 +29,24 @@ export const useVoiceInteraction = (callbacks: VoiceInteractionCallbacks) => {
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const interruptionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Configuration for voice interaction
-  const SILENCE_THRESHOLD = 2000; // 2 seconds of silence before AI can interject
-  const INTERRUPTION_THRESHOLD = 8000; // 8 seconds of silence triggers interruption
-  const MIN_SPEECH_LENGTH = 10; // Minimum characters for meaningful speech
+  // Configuration for voice interaction - OPTIMIZED FOR SPEED
+  const SILENCE_THRESHOLD = 800; // 0.8 seconds of silence before AI can interject (much faster)
+  const INTERRUPTION_THRESHOLD = 3000; // 3 seconds of silence triggers interruption (reduced from 8s)
+  const MIN_SPEECH_LENGTH = 5; // Minimum characters for meaningful speech (reduced)
 
   const startListening = useCallback(() => {
+    console.log('🎤 startListening called, current state:', { isListening: state.isListening });
+    
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      console.warn('Speech recognition not supported');
+      console.error('❌ Speech recognition not supported in this browser');
       return;
+    }
+
+    // Stop existing recognition first
+    if (recognitionRef.current) {
+      console.log('🛑 Stopping existing recognition...');
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
     }
 
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -50,7 +59,7 @@ export const useVoiceInteraction = (callbacks: VoiceInteractionCallbacks) => {
 
     recognition.onstart = () => {
       setState(prev => ({ ...prev, isListening: true, isSpeaking: false }));
-      console.log('🎤 Voice recognition started');
+      console.log('✅ Voice recognition started successfully');
     };
 
     recognition.onresult = (event: any) => {
@@ -66,6 +75,12 @@ export const useVoiceInteraction = (callbacks: VoiceInteractionCallbacks) => {
           interimTranscript += transcript;
         }
       }
+
+      console.log('🎯 Speech recognition result:', { 
+        interimTranscript, 
+        finalTranscript, 
+        isFinal: finalTranscript.length > 0 
+      });
 
       setState(prev => ({
         ...prev,
@@ -87,6 +102,7 @@ export const useVoiceInteraction = (callbacks: VoiceInteractionCallbacks) => {
 
       // If we have a final transcript segment, process it
       if (finalTranscript.trim().length > MIN_SPEECH_LENGTH) {
+        console.log('📝 Triggering onSpeechEnd with:', finalTranscript.trim());
         callbacks.onSpeechEnd(finalTranscript.trim());
       }
     };
@@ -111,28 +127,62 @@ export const useVoiceInteraction = (callbacks: VoiceInteractionCallbacks) => {
     };
 
     recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      if (event.error === 'no-speech') {
-        // Restart recognition after no speech
-        setTimeout(() => {
-          if (state.isListening) {
-            recognition.start();
-          }
-        }, 1000);
+      console.error('❌ Speech recognition error:', event.error);
+      
+      // Handle different error types
+      switch (event.error) {
+        case 'no-speech':
+          console.log('🔇 No speech detected, restarting...');
+          setTimeout(() => {
+            if (recognitionRef.current) {
+              try {
+                recognition.start();
+              } catch (e) {
+                console.error('Failed to restart recognition:', e);
+              }
+            }
+          }, 200);
+          break;
+        case 'not-allowed':
+          console.error('❌ Microphone permission denied');
+          setState(prev => ({ ...prev, isListening: false }));
+          break;
+        case 'network':
+          console.error('❌ Network error in speech recognition');
+          break;
+        default:
+          console.error('❌ Unknown speech recognition error:', event.error);
       }
     };
 
     recognition.onend = () => {
+      console.log('🔚 Speech recognition ended');
       setState(prev => ({ ...prev, isListening: false }));
-      // Auto-restart if we're still supposed to be listening
-      if (state.isListening) {
-        setTimeout(() => recognition.start(), 100);
+      
+      // Auto-restart if recognition is still active
+      if (recognitionRef.current === recognition) {
+        console.log('🔄 Auto-restarting speech recognition...');
+        setTimeout(() => {
+          if (recognitionRef.current === recognition) {
+            try {
+              recognition.start();
+            } catch (e) {
+              console.error('Failed to restart recognition:', e);
+            }
+          }
+        }, 50);
       }
     };
 
     recognitionRef.current = recognition;
-    recognition.start();
-  }, [callbacks, state.isListening, state.lastSpeechEnd]);
+    
+    try {
+      recognition.start();
+      console.log('🚀 Speech recognition start() called');
+    } catch (error) {
+      console.error('❌ Failed to start speech recognition:', error);
+    }
+  }, [callbacks]); // Removed state dependencies to avoid stale closures
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
